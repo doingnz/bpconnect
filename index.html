@@ -332,6 +332,20 @@
                             <i class="icon demo-list-icon"></i>
                           </div>
                           <div class="item-inner">
+                            <div class="item-title item-label">Flow Control</div>
+                            <div class="item-input-wrap input-dropdown-wrap">
+                              <select id="bpflowcontrol">
+                                <option value="hardware">Hardware (RTS/CTS)</option>
+                                <option value="none">None</option>
+                              </select>
+                            </div>
+                          </div>
+                        </li>
+                        <li class="item-content item-input">
+                          <div class="item-media">
+                            <i class="icon demo-list-icon"></i>
+                          </div>
+                          <div class="item-inner">
                             <div class="item-title item-label">Serial Tracing</div>
                             <div class="item-input-wrap input-dropdown-wrap">
                               <select id="bptrace">
@@ -344,8 +358,12 @@
                       </ul>
                     </div>
                     <p style="font-size:12px; color:#888;">
-                      Serial Tracing logs every TX/RX byte to the debug area below (blue=TX, green=RX, brown=CFG).<br>
-                      A page refresh is required after changing Connection or Rate.
+                      <strong>Flow Control:</strong> sets BLE adapter byte 3 (0x02=RTS/CTS, 0x00=none).
+                      For <em>Hardware</em> to work the BP+ device must also have flow control enabled
+                      (Menu → Setup → Hardware). Recommended on Android to prevent XML data loss.<br>
+                      <strong>Serial Tracing</strong> logs every TX/RX byte below (blue=TX, green=RX, brown=CFG).
+                      CFG trace shows actual config bytes sent — verify byte 3 is 0x02 (HW FC) or 0x00 (none).<br>
+                      A page refresh is required after changing Connection, Rate, or Flow Control.
                     </p>
 
                     <p>

@@ -183,6 +183,11 @@ $$('#bptrace').on('change', function (e) {
   localStorage.setItem("bptrace", trace);
 });
 
+// Flow control — requires page reload to reconnect with new BLE adapter config
+$$('#bpflowcontrol').on('change', function (e) {
+  localStorage.setItem("bpflowcontrol", $$('#bpflowcontrol').val());
+});
+
 // We need to wait for the DOM to be loaded to set the dropdown value
 $$(document).on('DOMContentLoaded', function(){
     
@@ -199,6 +204,11 @@ $$(document).on('DOMContentLoaded', function(){
   if (localStorage.bptrace) {
     $$('#bptrace').val(localStorage.bptrace);
   }
+
+  if (localStorage.bpflowcontrol) {
+    $$('#bpflowcontrol').val(localStorage.bpflowcontrol);
+  }
+  // Note: bpflowcontrol defaults to 'hardware' in getSettingFlowControl() if not set
 
     // If auto is selected change the auto value to what we have calced
   //$$('#connrate').options[0].text('xxx');

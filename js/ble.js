@@ -4,18 +4,38 @@
 class BluetoothTerminal {
   /**
    * Create preconfigured Bluetooth Terminal instance.
-   * @param {string}           [rate='115200']       - Serial baud rate passed to the BLE module config
-   * @param {!(number|string)} [serviceUuid]          - Service UUID
-   * @param {!(number|string)} [characteristicUuid]   - RX Characteristic UUID
+   *
+   * uConnect S2B5232I config characteristic byte layout (UUID 00031203-…):
+   *   Byte 0: 0xAA  product model identifier (RS-232)
+   *   Byte 1: baud  0x04=19200  0x05=38400  0x06=57600  0x07=115200
+   *   Byte 2: 0x00  reserved — MUST remain 0x00 (changing it breaks the write)
+   *   Byte 3: port  bit 0 = parity (0=none, 1=even)
+   *                 bit 1 = hardware flow control (0=disabled, 1=RTS/CTS enabled)
+   *
+   * So byte 3 = 0x02 enables RTS/CTS; byte 3 = 0x00 disables it.
+   *
+   * IMPORTANT: hardware flow control must be enabled on BOTH sides:
+   *   1. This BLE adapter (byte 3 = 0x02, set via flowControl=true)
+   *   2. The BP+ device itself (Menu → Setup → Hardware Flow Control)
+   *
+   * When both are enabled the adapter deasserts RTS when its serial buffer fills,
+   * pausing BP+ until the BLE link drains the buffer. This prevents the data loss
+   * seen on Android (XML length mismatch) where BLE is slower than 115200 baud.
+   *
+   * @param {string}           [rate='115200']
+   * @param {!(number|string)} [serviceUuid]
+   * @param {!(number|string)} [characteristicUuid]
    * @param {string}           [receiveSeparator='\n']
    * @param {string}           [sendSeparator='\n']
+   * @param {boolean}          [flowControl=true]  true = byte 3 bit 1 set (RTS/CTS enabled)
    */
-// Uconnect
+// uConnect S2B5232I
   constructor(rate = '115200',
               serviceUuid        = '0003abcd-0000-1000-8000-00805f9b0131',
               characteristicUuid = '00031201-0000-1000-8000-00805f9b0130',
               receiveSeparator   = '\n',
-              sendSeparator      = '\n') {
+              sendSeparator      = '\n',
+              flowControl        = true) {
 
 /* LM Tech LM068
     constructor(serviceUuid = '00005500-d102-11e1-9b23-00025b00a5a5',
@@ -35,6 +55,7 @@ class BluetoothTerminal {
     this._txCharacteristic = null;
     this._configCharacteristic = null;
     this._rate = rate;
+    this._flowControl = flowControl;
 
     this._boundHandleDisconnection = this._handleDisconnection.bind(this);
     this._boundHandleCharacteristicValueChanged =
@@ -166,32 +187,28 @@ class BluetoothTerminal {
   // ── Private ──────────────────────────────────────────────────────────────
 
   /**
-   * Build the 4-byte serial-port config word for the uConnect BLE module.
+   * Build the 4-byte serial-port config word for the uConnect S2B5232I.
    *
-   * Byte layout:  [0xAA, baudCode, 0x00, 0x02]
-   *   baudCode  0x04=19200  0x05=38400  0x06=57600  0x07=115200
+   * Byte 0: 0xAA   product model (RS-232)
+   * Byte 1: baud   0x04=19200  0x05=38400  0x06=57600  0x07=115200
+   * Byte 2: 0x00   reserved — must be 0x00
+   * Byte 3: port   0x00 = no parity, no flow control
+   *                0x02 = no parity, hardware RTS/CTS enabled  (bit 1)
    *
-   * NOTE: byte[2] is fixed at 0x00.  Setting it to 0x01 (attempted as a
-   * hardware RTS/CTS flag) causes the config characteristic write to be
-   * rejected by the BLE module, preventing connection entirely.  Testing
-   * confirmed that 0x00 works correctly even when the BP+ device has
-   * hardware flow control enabled — the BLE module handles the serial
-   * flow-control signalling to the BP+ transparently without needing to
-   * be told about it via this characteristic.
-   *
-   * @param {string} rate - Baud rate string ('115200', '57600', …)
+   * @param {string} rate
    * @return {Uint8Array}
    * @private
    */
   _buildConfigBytes(rate) {
-    let baudCode = 0x07; // default 115200
+    let baudCode = 0x07;
     switch (rate) {
       case '115200': baudCode = 0x07; break;
       case '57600':  baudCode = 0x06; break;
       case '38400':  baudCode = 0x05; break;
       case '19200':  baudCode = 0x04; break;
     }
-    return new Uint8Array([0xAA, baudCode, 0x00, 0x02]);
+    const portSettings = this._flowControl ? 0x02 : 0x00;
+    return new Uint8Array([0xAA, baudCode, 0x00, portSettings]);
   }
 
   /**
@@ -222,7 +239,7 @@ class BluetoothTerminal {
         //          so we can talk to the BP+ at its startup rate.
         then(() => {
           const data = this._buildConfigBytes('115200');
-          debuglog('BLE config step 1 [115200]:', data);
+          debuglog('BLE config step 1 [115200, fc=' + this._flowControl + ', bytes=' + Array.from(data) + ']');
           tracelog('CFG', data);
           return this._writeToCharacteristicByteArray(this._configCharacteristic, data);
         }).
@@ -243,7 +260,7 @@ class BluetoothTerminal {
         // Step 4 — reconfigure the BLE module to the new rate + flow control.
         then(() => {
           const data = this._buildConfigBytes(this._rate);
-          debuglog('BLE config step 4 [rate=' + this._rate + ']:', data);
+          debuglog('BLE config step 4 [rate=' + this._rate + ', fc=' + this._flowControl + ', bytes=' + Array.from(data) + ']');
           tracelog('CFG', data);
           return this._writeToCharacteristicByteArray(this._configCharacteristic, data);
         }).

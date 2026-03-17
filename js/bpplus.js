@@ -21,7 +21,7 @@ switch(getSettingConnection()) {
     bpplus = new BpPlusWebSerial();
     break;
   case 'bluetooth':
-    bpplus = new BpPlusBle(getSettingRate());
+    bpplus = new BpPlusBle(getSettingRate(), getSettingFlowControl());
     break;
   default:
 }
@@ -65,6 +65,19 @@ function getSettingRate() {
     }
     
     return bpplusConnRate;    
+}
+
+
+/**
+ * Hardware flow control setting.
+ * Returns true when the BLE adapter should have RTS/CTS enabled (byte 3 = 0x02).
+ * The BP+ device must ALSO have hardware flow control enabled to match.
+ * Defaults to true — this prevents data loss on Android by throttling the
+ * BP+ serial output when the BLE link can't keep up with 115200 baud.
+ */
+function getSettingFlowControl() {
+    // Default 'hardware' if not explicitly set to 'none'
+    return localStorage.getItem('bpflowcontrol') !== 'none';
 }
 
 
