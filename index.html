@@ -41,12 +41,10 @@
   <link rel="prefetch" href="assets/button-stop.svg">
 
   <style>
-    /* ── Local-dev banner ─────────────────────────────────────────────────── */
+    /* ── Status bar ───────────────────────────────────────────────────────── */
     #dev-banner {
       position: fixed;
-      top: 0;
-      left: 0;
-      right: 0;
+      top: 0; left: 0; right: 0;
       z-index: 9999;
       background: #e65100;
       color: #fff;
@@ -54,17 +52,49 @@
       font-family: monospace;
       text-align: center;
       padding: 2px 8px;
-      letter-spacing: 0.5px;
+      letter-spacing: 0.3px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
-    /* Push the app content down so the banner doesn't overlap the navbar */
+    #dev-banner .sb-sep { opacity: 0.5; margin: 0 5px; }
+    #dev-banner .sb-label { opacity: 0.75; }
+
+    /* Push the app content below the status bar */
     #app { padding-top: 18px; }
 
-    /* ── Connection status indicator ──────────────────────────────────────── */
-    #dev-conn-status {
-      font-size: 11px;
-      color: #888;
-      padding: 2px 16px 0 16px;
+    /* ── Loading overlay — visible while assets download on first visit ────── */
+    #loading-overlay {
+      position: fixed;
+      top: 18px; left: 0; right: 0; bottom: 0;
+      z-index: 9000;
+      background: #fff;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      font-family: sans-serif;
     }
+    #loading-overlay .lo-title {
+      font-size: 22px;
+      font-weight: 700;
+      color: #0d47a1;
+      letter-spacing: 1px;
+      margin-bottom: 6px;
+    }
+    #loading-overlay .lo-sub {
+      font-size: 13px;
+      color: #999;
+      margin-bottom: 24px;
+    }
+    #loading-overlay .lo-spinner {
+      width: 36px; height: 36px;
+      border: 3px solid #e0e0e0;
+      border-top-color: #1565c0;
+      border-radius: 50%;
+      animation: lo-spin 0.8s linear infinite;
+    }
+    @keyframes lo-spin { to { transform: rotate(360deg); } }
   </style>
 </head>
 <body>
@@ -82,12 +112,22 @@
             margin-left:4px;">Later</button>
   </div>
 
-  <!-- ── Local development banner ──────────────────────────────────────────── -->
+  <!-- ── Status bar ─────────────────────────────────────────────────────────── -->
   <div id="dev-banner">
-    LOCAL DEV &nbsp;|&nbsp;
-    Serial: <span id="dev-serial-status">?</span> &nbsp;|&nbsp;
-    Bluetooth: <span id="dev-bt-status">?</span> &nbsp;|&nbsp;
-    Context: <span id="dev-context">?</span>
+    <span class="sb-label">v</span><span id="banner-version">…</span>
+    <span class="sb-sep">|</span>
+    <span id="banner-connection">…</span>
+    <span class="sb-sep">|</span>
+    <span id="banner-fc">…</span>
+    <span class="sb-sep">|</span>
+    <span id="banner-trace">…</span>
+  </div>
+
+  <!-- ── Loading overlay — shown while assets download; hidden by app.js ────── -->
+  <div id="loading-overlay">
+    <div class="lo-title">BP+ Connect</div>
+    <div class="lo-sub">Loading, please wait…</div>
+    <div class="lo-spinner"></div>
   </div>
 
   <div id="app">
@@ -405,37 +445,37 @@
   <script type="text/javascript" src="js/waveform.js"></script>
   <script type="text/javascript" src="js/app.js"></script>
 
-  <!-- ── Local development helpers ─────────────────────────────────────────── -->
+  <!-- ── Status bar population + misc page setup ───────────────────────────── -->
   <script>
-    // Populate the dev banner with real API availability info
     (function () {
-      var serialOk  = 'serial'    in navigator;
-      var btOk      = 'bluetooth' in navigator;
-      var isSecure  = location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1';
-      var isFile    = location.protocol === 'file:';
+      // ── Populate status bar from localStorage (runs before any async work) ──
+      var connLabels = {
+        simulator: 'Simulator', bluetooth: 'Bluetooth',
+        serial: 'Serial',       webserial: 'USB Serial'
+      };
+      var conn = localStorage.getItem('bpconnection') || 'simulator';
+      var fc   = localStorage.getItem('bpflowcontrol');   // null / 'hardware' / 'none'
+      var tr   = localStorage.getItem('bptrace');          // null / 'on' / 'off'
 
-      document.getElementById('dev-serial-status').textContent = serialOk  ? '✓' : '✗';
-      document.getElementById('dev-bt-status').textContent     = btOk      ? '✓' : '✗';
-      document.getElementById('dev-context').textContent       = isFile ? 'file:// (simulator only)' : isSecure ? 'secure ✓' : 'insecure – serial/BT unavailable';
+      document.getElementById('banner-connection').textContent =
+        connLabels[conn] || conn;
+      document.getElementById('banner-fc').textContent =
+        (fc === 'none') ? 'No FC' : 'HW FC';
+      document.getElementById('banner-trace').textContent =
+        (tr === 'on') ? 'Trace ●' : 'Trace ○';
 
-      // Also update the readable labels inside the settings tab
-      document.getElementById('serial-status-text').textContent = serialOk  ? 'yes' : 'no';
-      document.getElementById('bt-status-text').textContent     = btOk      ? 'yes' : 'no';
+      // ── API availability labels inside the settings tab ─────────────────────
+      var serialOk = 'serial'    in navigator;
+      var btOk     = 'bluetooth' in navigator;
+      document.getElementById('serial-status-text').textContent = serialOk ? 'yes' : 'no';
+      document.getElementById('bt-status-text').textContent     = btOk     ? 'yes' : 'no';
 
-      // Warn if serial/BT are needed but unavailable
-      if (!serialOk && !btOk && !isFile) {
-        console.warn('[LOCAL DEV] Neither Web Serial nor Web Bluetooth is available. ' +
-                     'Ensure you are on localhost or https://. Simulator mode will still work.');
-      }
-
-      // Default to simulator the very first time (before any localStorage is set)
+      // ── Default to simulator on first visit ──────────────────────────────────
       if (!localStorage.getItem('bpconnection')) {
         localStorage.setItem('bpconnection', 'simulator');
-        console.info('[LOCAL DEV] No saved connection — defaulted to "simulator".');
       }
 
-      // Prevent Framework7 swipeable-tab gestures from stealing mouse/touch
-      // drags that start inside the debug area, so text can be selected normally.
+      // ── Prevent Framework7 tab-swipe from blocking text selection in #debug ──
       var debugEl = document.getElementById('debug');
       if (debugEl) {
         ['mousedown', 'pointerdown', 'touchstart'].forEach(function (type) {
@@ -494,19 +534,26 @@
       });
 
       // ── Version display ─────────────────────────────────────────────────────
-      // Fetch version.json with a timestamp query so it bypasses any HTTP cache.
-      // The SW serves this network-first so it always reflects the latest deploy.
+      // Fetch with timestamp so it always goes to the network (SW is network-first
+      // for version.json), giving us the version of what's actually deployed.
       fetch('./version.json?t=' + Date.now())
         .then(function (r) { return r.json(); })
         .then(function (v) {
-          var el = document.getElementById('app-version');
-          if (el) {
-            el.textContent = v.version + ' (' + v.commit + ')  ' + v.date.substring(0, 10);
-          }
+          var full = v.version + ' (' + v.commit + ')  ' + v.date.substring(0, 10);
+
+          // Settings tab
+          var settingsEl = document.getElementById('app-version');
+          if (settingsEl) settingsEl.textContent = full;
+
+          // Status bar (compact: version + commit only)
+          var bannerEl = document.getElementById('banner-version');
+          if (bannerEl) bannerEl.textContent = v.version + ' (' + v.commit + ')';
         })
         .catch(function () {
-          var el = document.getElementById('app-version');
-          if (el) el.textContent = 'unknown';
+          var settingsEl = document.getElementById('app-version');
+          if (settingsEl) settingsEl.textContent = 'unknown';
+          var bannerEl = document.getElementById('banner-version');
+          if (bannerEl) bannerEl.textContent = '?';
         });
     })();
   </script>

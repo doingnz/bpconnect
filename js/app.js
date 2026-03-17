@@ -33,6 +33,15 @@ var app = new Framework7({
 
 var mainView = app.views.create('.view-main');
 
+// Framework7 has initialised — hide the loading overlay
+(function () {
+  var ov = document.getElementById('loading-overlay');
+  if (!ov) return;
+  ov.style.opacity = '0';
+  ov.style.transition = 'opacity 0.25s';
+  setTimeout(function () { ov.style.display = 'none'; }, 260);
+}());
+
 // Show uploadGevity section if ?uploadGevity=1 is in the URL
 const urlParams = new URLSearchParams(window.location.search);
 if (urlParams.get('uploadGevity') === '1') {
