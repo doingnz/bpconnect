@@ -4,9 +4,9 @@ on:
   push:
     branches: [main, hwfc]
 
-# Skip if this is the auto-commit from the action itself
 jobs:
   version:
+    # Don't run on the auto-commit this action produces
     if: "!contains(github.event.head_commit.message, '[skip ci]')"
     runs-on: ubuntu-latest
     permissions:
@@ -22,21 +22,25 @@ jobs:
           BUILD=$(git rev-list --count HEAD)
           VERSION="0.1.${BUILD}"
 
-          echo "Version: ${VERSION}  Commit: ${COMMIT}  Date: ${DATE}"
+          echo "Version: ${VERSION}  Commit: ${COMMIT}  Build: ${BUILD}"
 
-          # Write version.json
-          cat > version.json <<EOF
-          {"version":"${VERSION}","commit":"${COMMIT}","date":"${DATE}","build":${BUILD}}
-          EOF
+          # Write version.json (printf avoids any leading-whitespace issues)
+          printf '{"version":"%s","commit":"%s","date":"%s","build":%s}\n' \
+            "${VERSION}" "${COMMIT}" "${DATE}" "${BUILD}" > version.json
 
-          # Update the CACHE_VERSION constant in sw.js so the browser detects
-          # the SW file has changed and triggers the update flow
+          # Update CACHE_VERSION in sw.js so the browser detects the SW changed
           sed -i "s/const CACHE_VERSION = '[^']*';/const CACHE_VERSION = '${COMMIT}';/" sw.js
 
-      - name: Commit updated files
+          cat version.json
+
+      - name: Commit and push updated files
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add version.json sw.js
-          git diff --staged --quiet \
-            || git commit -m "chore: update version [skip ci]" && git push
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "chore: update version [skip ci]"
+            git push
+          fi
