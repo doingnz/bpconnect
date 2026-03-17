@@ -1,0 +1,107 @@
+/**
+ * BP+ Connect — Service Worker
+ *
+ * CACHE_VERSION is replaced on every push to main/hwfc by GitHub Actions.
+ * Changing this constant causes the browser to detect the SW file has changed,
+ * download the new SW, install it (caching all assets under the new name),
+ * then wait.  The page shows an "Update available" banner; the user clicks
+ * "Update now" which posts SKIP_WAITING → the SW activates → page reloads.
+ */
+
+// ── This line is updated automatically by GitHub Actions on each push: ────────
+const CACHE_VERSION = 'dev';
+// ─────────────────────────────────────────────────────────────────────────────
+
+const CACHE_NAME = 'bpconnect-' + CACHE_VERSION;
+
+const PRECACHE = [
+  './',
+  './index.html',
+  './version.json',
+  './manifest.json',
+  './css/app.css',
+  './css/fa-all.css',
+  './framework7/css/framework7.bundle.min.css',
+  './framework7/js/framework7.bundle.min.js',
+  './js/vendor/chart.umd.min.js',
+  './js/utils.js',
+  './js/crc8.js',
+  './js/emitter.js',
+  './js/ble.js',
+  './js/bpplus-ble.js',
+  './js/bpplus-sim.js',
+  './js/bpplus-serial.js',
+  './js/bpplus-webserial.js',
+  './js/bpplus.js',
+  './js/waveform.js',
+  './js/app.js',
+  './assets/uscom-logo.svg',
+  './assets/bpplus-logo.svg',
+  './assets/button-connect.svg',
+  './assets/button-start.svg',
+  './assets/button-stop.svg',
+  './assets/graph.png',
+  './webfonts/fa-solid-900.woff2',
+  './webfonts/fa-regular-400.woff2',
+  './webfonts/fa-brands-400.woff2',
+  './icon-192.png',
+  './icon-128.png',
+  './apple-touch-icon.png',
+];
+
+// ── Install: cache all assets ─────────────────────────────────────────────────
+self.addEventListener('install', (event) => {
+  event.waitUntil(
+    caches.open(CACHE_NAME)
+      .then((cache) => cache.addAll(PRECACHE))
+    // Do NOT call skipWaiting() here — we wait for the user to confirm the
+    // update via the page banner before activating the new SW.
+  );
+});
+
+// ── Activate: delete caches from old versions ─────────────────────────────────
+self.addEventListener('activate', (event) => {
+  event.waitUntil(
+    caches.keys()
+      .then((keys) => Promise.all(
+        keys
+          .filter((k) => k.startsWith('bpconnect-') && k !== CACHE_NAME)
+          .map((k) => caches.delete(k))
+      ))
+      .then(() => self.clients.claim())
+  );
+});
+
+// ── Fetch: cache-first for all assets; network-first for version.json ─────────
+self.addEventListener('fetch', (event) => {
+  // Only handle same-origin requests
+  if (!event.request.url.startsWith(self.location.origin)) return;
+
+  if (event.request.url.includes('version.json')) {
+    // Network-first: always try to get the latest version info so the page
+    // can detect when a new release has been deployed.
+    event.respondWith(
+      fetch(event.request)
+        .then((response) => {
+          const clone = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+          return response;
+        })
+        .catch(() => caches.match(event.request))
+    );
+    return;
+  }
+
+  // Cache-first for everything else (fast, offline-capable)
+  event.respondWith(
+    caches.match(event.request)
+      .then((cached) => cached || fetch(event.request))
+  );
+});
+
+// ── Message: SKIP_WAITING sent by the page when user confirms update ──────────
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
+});
