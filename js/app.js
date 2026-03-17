@@ -169,14 +169,6 @@ $$('#connection').on('change', function (e) {
 */
 });
 
-// When the rate type changes store the value
-$$('#connrate').on('change', function (e) {
-  var rate = $$('#connrate').val();
-
-  // We will have to reload to change the connection
-  localStorage.setItem("bpconnrate", rate);
-});
-
 // Serial tracing toggle — takes effect immediately (no reload needed)
 $$('#bptrace').on('change', function (e) {
   var trace = $$('#bptrace').val();
@@ -196,11 +188,6 @@ $$(document).on('DOMContentLoaded', function(){
     $$('#connection').val(bpplusConnection);
   }
   
-  if (localStorage.bpconnrate) {
-    var bpplusConnRate = localStorage.bpconnrate;
-    $$('#connrate').val(bpplusConnRate);
-  }
-
   if (localStorage.bptrace) {
     $$('#bptrace').val(localStorage.bptrace);
   }
@@ -209,13 +196,6 @@ $$(document).on('DOMContentLoaded', function(){
     $$('#bpflowcontrol').val(localStorage.bpflowcontrol);
   }
   // Note: bpflowcontrol defaults to 'hardware' in getSettingFlowControl() if not set
-
-    // If auto is selected change the auto value to what we have calced
-  //$$('#connrate').options[0].text('xxx');
-  if (bpplusConnRate == 'auto') {
-      autorate = getSettingRate();
-        document.getElementById("connrate").options[0].text = 'Auto (' + autorate + ')';
-  }
 
   // Fill in the results table now the DOM has been drawn
   resultsTableDraw();

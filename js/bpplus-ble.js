@@ -4,13 +4,13 @@
 class BpPlusBle {
 
   // Create instance
-  constructor(bpplusConnRate, flowControl = true) {
+  constructor(flowControl = true) {
     // Private variables
     this._event = new Emitter;
     this._running = false;
     this._status = 'disconnected';
 
-    this._ble = new BluetoothTerminal(bpplusConnRate,
+    this._ble = new BluetoothTerminal(
         '0003abcd-0000-1000-8000-00805f9b0131',
         '00031201-0000-1000-8000-00805f9b0130',
         '\n', '\n',

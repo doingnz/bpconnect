@@ -315,23 +315,6 @@
                             <i class="icon demo-list-icon"></i>
                           </div>
                           <div class="item-inner">
-                            <div class="item-title item-label">Rate</div>
-                            <div class="item-input-wrap input-dropdown-wrap">
-                              <select id="connrate">
-                                <option value="auto">Auto</option>
-                                <option value="115200">115200</option>
-                                <option value="57600">57600</option>
-                                <option value="38400">38400</option>
-                                <option value="19200">19200</option>
-                              </select>
-                            </div>
-                          </div>
-                        </li>
-                        <li class="item-content item-input">
-                          <div class="item-media">
-                            <i class="icon demo-list-icon"></i>
-                          </div>
-                          <div class="item-inner">
                             <div class="item-title item-label">Flow Control</div>
                             <div class="item-input-wrap input-dropdown-wrap">
                               <select id="bpflowcontrol">
@@ -363,7 +346,7 @@
                       (Menu → Setup → Hardware). Recommended on Android to prevent XML data loss.<br>
                       <strong>Serial Tracing</strong> logs every TX/RX byte below (blue=TX, green=RX, brown=CFG).
                       CFG trace shows actual config bytes sent — verify byte 3 is 0x02 (HW FC) or 0x00 (none).<br>
-                      A page refresh is required after changing Connection, Rate, or Flow Control.
+                      A page refresh is required after changing Connection or Flow Control.
                     </p>
 
                     <p>
@@ -376,7 +359,7 @@
                       <strong style="font-size:12px;">Debug / Trace</strong>
                       <button class="button button-small" onclick="document.getElementById('debug').innerHTML=''">Clear</button>
                     </div>
-                    <div id="debug" style="max-height:300px; overflow-y:auto; background:#f8f8f8; padding:4px; border:1px solid #ddd; border-radius:4px;"><p>Debug output appears here</p></div>
+                    <div id="debug" style="max-height:300px; overflow-y:auto; background:#f8f8f8; padding:4px; border:1px solid #ddd; border-radius:4px; user-select:text; -webkit-user-select:text; cursor:text;"><p>Debug output appears here</p></div>
 
                   </div>
                 </div>
@@ -436,6 +419,16 @@
       if (!localStorage.getItem('bpconnection')) {
         localStorage.setItem('bpconnection', 'simulator');
         console.info('[LOCAL DEV] No saved connection — defaulted to "simulator".');
+      }
+
+      // Prevent Framework7 swipeable-tab gestures from stealing mouse/touch
+      // drags that start inside the debug area, so text can be selected normally.
+      var debugEl = document.getElementById('debug');
+      if (debugEl) {
+        ['mousedown', 'pointerdown', 'touchstart'].forEach(function (type) {
+          debugEl.addEventListener(type, function (e) { e.stopPropagation(); },
+            type === 'touchstart' ? { passive: true } : false);
+        });
       }
     })();
   </script>

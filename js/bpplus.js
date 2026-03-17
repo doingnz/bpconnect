@@ -21,7 +21,7 @@ switch(getSettingConnection()) {
     bpplus = new BpPlusWebSerial();
     break;
   case 'bluetooth':
-    bpplus = new BpPlusBle(getSettingRate(), getSettingFlowControl());
+    bpplus = new BpPlusBle(getSettingFlowControl());
     break;
   default:
 }
@@ -42,29 +42,6 @@ function getSettingConnection() {
       bpplusConnection = localStorage.bpconnection;
     }
     return bpplusConnection;
-}
-
-function getSettingRate() {
-    let bpplusConnRate = 'auto';
-    
-    if (localStorage.bpconnrate) {
-      bpplusConnRate = localStorage.bpconnrate;
-    }
-    
-    // If auto determine rate from browser
-    if (bpplusConnRate === 'auto') {
-        bpplusConnRate = '115200';
-
-        if (navigator.appVersion.indexOf("Win")!=-1)
-            bpplusConnRate = '57600';
-
-        if (navigator.appVersion.indexOf("Bluefy")!=-1)
-            bpplusConnRate = '19200';
-        
-        
-    }
-    
-    return bpplusConnRate;    
 }
 
 

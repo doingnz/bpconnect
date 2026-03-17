@@ -22,7 +22,6 @@ class BluetoothTerminal {
    * pausing BP+ until the BLE link drains the buffer. This prevents the data loss
    * seen on Android (XML length mismatch) where BLE is slower than 115200 baud.
    *
-   * @param {string}           [rate='115200']
    * @param {!(number|string)} [serviceUuid]
    * @param {!(number|string)} [characteristicUuid]
    * @param {string}           [receiveSeparator='\n']
@@ -30,8 +29,7 @@ class BluetoothTerminal {
    * @param {boolean}          [flowControl=true]  true = byte 3 bit 1 set (RTS/CTS enabled)
    */
 // uConnect S2B5232I
-  constructor(rate = '115200',
-              serviceUuid        = '0003abcd-0000-1000-8000-00805f9b0131',
+  constructor(serviceUuid        = '0003abcd-0000-1000-8000-00805f9b0131',
               characteristicUuid = '00031201-0000-1000-8000-00805f9b0130',
               receiveSeparator   = '\n',
               sendSeparator      = '\n',
@@ -54,7 +52,6 @@ class BluetoothTerminal {
     this._characteristic = null;
     this._txCharacteristic = null;
     this._configCharacteristic = null;
-    this._rate = rate;
     this._flowControl = flowControl;
 
     this._boundHandleDisconnection = this._handleDisconnection.bind(this);
@@ -190,41 +187,27 @@ class BluetoothTerminal {
    * Build the 4-byte serial-port config word for the uConnect S2B5232I.
    *
    * Byte 0: 0xAA   product model (RS-232)
-   * Byte 1: baud   0x04=19200  0x05=38400  0x06=57600  0x07=115200
+   * Byte 1: 0x07   baud rate 115200 (BP+ only supports 115200)
    * Byte 2: 0x00   reserved — must be 0x00
    * Byte 3: port   0x00 = no parity, no flow control
    *                0x02 = no parity, hardware RTS/CTS enabled  (bit 1)
    *
-   * @param {string} rate
    * @return {Uint8Array}
    * @private
    */
-  _buildConfigBytes(rate) {
-    let baudCode = 0x07;
-    switch (rate) {
-      case '115200': baudCode = 0x07; break;
-      case '57600':  baudCode = 0x06; break;
-      case '38400':  baudCode = 0x05; break;
-      case '19200':  baudCode = 0x04; break;
-    }
+  _buildConfigBytes() {
     const portSettings = this._flowControl ? 0x02 : 0x00;
-    return new Uint8Array([0xAA, baudCode, 0x00, portSettings]);
+    return new Uint8Array([0xAA, 0x07, 0x00, portSettings]);
   }
 
   /**
-   * Connect, discover characteristics, start notifications, then negotiate the
-   * baud rate with the BP+ and configure the BLE module serial port.
+   * Connect, discover characteristics, start notifications, configure the
+   * BLE module serial port, then signal ready.
    *
-   * FIX 1: connected() is now called AFTER the complete config sequence so the
-   *         caller cannot send commands until the BLE module is fully ready.
-   *
-   * FIX 2: the 'b <rate>' TX write now has return so sleep(5000) correctly
-   *         waits for the write to complete before starting the timer.
-   *
-   * FIX 3: both config writes now use _buildConfigBytes() which includes the
-   *         hardware flow control byte — this is what caused the BP+ to be
-   *         unable to send responses back when hardware FC was enabled on the
-   *         device but not configured on the BLE module serial port.
+   * BP+ only supports 115200 baud so no baud-rate negotiation is needed —
+   * a single config write sets the adapter to 115200 + flow control state.
+   * connected() is called only after the config write completes so the
+   * caller cannot send commands until the BLE module is fully ready.
    *
    * @param {Object} device
    * @return {Promise}
@@ -235,40 +218,17 @@ class BluetoothTerminal {
         then((device) => this._connectDeviceAndCacheCharacteristic(device)).
         then((characteristic) => this._startNotifications(characteristic)).
 
-        // Step 1 — put the BLE module into 115200 + configured flow control
-        //          so we can talk to the BP+ at its startup rate.
+        // Configure the BLE module: 115200 baud + flow control setting.
         then(() => {
-          const data = this._buildConfigBytes('115200');
-          debuglog('BLE config step 1 [115200, fc=' + this._flowControl + ', bytes=' + Array.from(data) + ']');
+          const data = this._buildConfigBytes();
+          debuglog('BLE config [115200, fc=' + this._flowControl + ', bytes=' + Array.from(data) + ']');
           tracelog('CFG', data);
           return this._writeToCharacteristicByteArray(this._configCharacteristic, data);
         }).
 
-        // Step 2 — tell the BP+ to switch to the desired baud rate.
+        // Configuration complete: signal ready.
         then(() => {
-          const cmd = 'b ' + this._rate + '\r\n';
-          debuglog('BLE rate cmd:', cmd.trim());
-          return this._writeToCharacteristic(this._txCharacteristic, cmd); // FIX 2: return was missing
-        }).
-
-        // Step 3 — wait for the BP+ to complete its baud-rate switch.
-        then(() => {
-          debuglog('BLE waiting for BP+ rate switch (5 s)…');
-          return sleep(5000);
-        }).
-
-        // Step 4 — reconfigure the BLE module to the new rate + flow control.
-        then(() => {
-          const data = this._buildConfigBytes(this._rate);
-          debuglog('BLE config step 4 [rate=' + this._rate + ', fc=' + this._flowControl + ', bytes=' + Array.from(data) + ']');
-          tracelog('CFG', data);
-          return this._writeToCharacteristicByteArray(this._configCharacteristic, data);
-        }).
-
-        // Step 5 — configuration complete: signal ready.
-        // FIX 1: connected() is here, not before step 1.
-        then(() => {
-          debuglog('BLE fully configured — signalling connected');
+          debuglog('BLE configured — signalling connected');
           this.connected();
         }).
 
