@@ -1,0 +1,121 @@
+
+
+/* Set the height of the navbar */
+.md, .ios {
+  --f7-navbar-height: 58px;
+  --f7-navbar-tablet-height: 58px;
+  --f7-navbar-bg-color: white;
+	--f7-navbar-bg-color-rgb: 255, 255, 255;
+	--f7-list-margin-vertical: 10px;
+}
+
+/*
+Make navbar transparent
+.navbar-bg {
+	background: transparent !important;	
+}
+*/
+
+/* Add a gap around the images in the navbar */
+/* Force the start button to show outside the navbar */
+.navbar-inner {
+  --f7-navbar-inner-padding-left: 4px;
+  --f7-navbar-inner-padding-right: 4px;
+	--f7-safe-area-top: 4px;
+  overflow: visible !important;
+}
+
+
+
+.window-border {
+	padding: 4px;
+}
+
+/* Style for the measure results */
+.measures {
+	font-size: 72px;
+}
+
+.patient-label {
+  margin-top: 0px;
+  margin-bottom: 0px;
+	font-size: var(--f7-label-font-size);
+  /* color: rgba(255, 255, 255, 0.54); */
+	color: var(--f7-label-text-color);
+}
+
+.patient-value {
+  margin-top: 0px;
+  margin-bottom: 0px;
+	font-size: var(--f7-input-font-size);
+}
+
+/* ── Waveform charts (Tab 3) ─────────────────────────────────────────────── */
+
+/* Each chart block: title + canvas */
+.wf-section {
+    border-bottom: 1px solid #e8e8e8;
+    padding: 6px 10px 4px;
+}
+
+.wf-title {
+    font-size: 11px;
+    font-weight: 600;
+    color: #444;
+    margin-bottom: 3px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+/* Coloured dot in the title matching the line colour */
+.wf-title-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+    flex-shrink: 0;
+}
+
+/* Legend glyphs in title */
+.wf-legend-beat {
+    font-size: 10px;
+    color: rgba(211, 47, 47, 0.80);
+    font-weight: 400;
+}
+.wf-legend-dot {
+    font-size: 10px;
+    color: #e65100;
+    font-weight: 400;
+}
+
+/* Canvas wrapper — fixed height so chart fills it */
+.wf-canvas-wrap {
+    position: relative;
+    height: 130px;
+}
+
+/* Side-by-side average-pulse row */
+.wf-avg-row {
+    display: flex;
+    gap: 0;
+}
+
+.wf-avg-col {
+    flex: 1;
+    min-width: 0;          /* prevent flex children overflowing */
+    padding: 0 4px;
+}
+
+.wf-avg-col:first-child {
+    border-right: 1px solid #e8e8e8;
+    padding-left: 0;
+}
+
+/* Placeholder shown before first measurement */
+#waveform-placeholder {
+    padding: 40px 16px;
+    text-align: center;
+    color: #aaa;
+    font-size: 13px;
+}

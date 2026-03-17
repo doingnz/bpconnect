@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<!-- LOCAL DEVELOPMENT COPY — see CLAUDE.md and ApplicationDesign.md -->
+<!--
+  To run locally:
+    Python : python -m http.server 8080  → http://localhost:8080
+    Node   : npx serve .                 → http://localhost:3000
+
+  Web Serial and Web Bluetooth require a secure context (https:// or localhost).
+  Opening as file:// will work for Simulator mode only.
+
+  Connection defaults to "Simulator" — no hardware needed for basic UI testing.
+-->
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, minimal-ui, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="theme-color" content="#2196f3">
+  <title>BP+ Connect [LOCAL DEV]</title>
+
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <link rel="apple-touch-icon" sizes="120x120" href="apple-touch-icon-120.png">
+  <link rel="apple-touch-icon" sizes="152x152" href="apple-touch-icon-152.png">
+  <link rel="apple-touch-icon" sizes="167x167" href="apple-touch-icon-167.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon-180.png">
+
+  <link href="icon-192.png" rel="icon" sizes="192x192" />
+  <link href="icon-128.png" rel="icon" sizes="128x128" />
+
+  <link rel="manifest" href="manifest.json">
+
+  <link rel="apple-touch-startup-image" href="apple-touch-icon-180.png">
+  <meta name="apple-mobile-web-app-title" content="BP+ Connect">
+
+  <link rel="stylesheet" href="framework7/css/framework7.bundle.min.css">
+  <link rel="stylesheet" href="css/fa-all.css">
+  <link rel="stylesheet" href="css/app.css">
+
+  <!-- Local dev: pre-fetch start/stop button SVGs so transitions are instant -->
+  <link rel="prefetch" href="assets/button-start.svg">
+  <link rel="prefetch" href="assets/button-stop.svg">
+
+  <style>
+    /* ── Local-dev banner ─────────────────────────────────────────────────── */
+    #dev-banner {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 9999;
+      background: #e65100;
+      color: #fff;
+      font-size: 11px;
+      font-family: monospace;
+      text-align: center;
+      padding: 2px 8px;
+      letter-spacing: 0.5px;
+    }
+    /* Push the app content down so the banner doesn't overlap the navbar */
+    #app { padding-top: 18px; }
+
+    /* ── Connection status indicator ──────────────────────────────────────── */
+    #dev-conn-status {
+      font-size: 11px;
+      color: #888;
+      padding: 2px 16px 0 16px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ── Local development banner ──────────────────────────────────────────── -->
+  <div id="dev-banner">
+    LOCAL DEV &nbsp;|&nbsp;
+    Serial: <span id="dev-serial-status">?</span> &nbsp;|&nbsp;
+    Bluetooth: <span id="dev-bt-status">?</span> &nbsp;|&nbsp;
+    Context: <span id="dev-context">?</span>
+  </div>
+
+  <div id="app">
+    <div class="views">
+
+      <!-- Toolbar -->
+      <div class="toolbar tabbar toolbar-bottom">
+        <div class="toolbar-inner">
+          <a href="#tab1" class="tab-link tab-link-active">
+            <i class="fas fa-list-ol fa-lg"></i>
+          </a>
+          <a href="#tab2" class="tab-link">
+            <i class="fas fa-table fa-lg"></i>
+          </a>
+          <a href="#tab3" class="tab-link">
+            <i class="fas fa-chart-line fa-lg"></i>
+          </a>
+          <a href="#tab4" class="tab-link">
+            <img height="28" width="28" src="assets/uscom-logo.svg">
+          </a>
+        </div>
+      </div>
+
+      <div id="view-home" class="view view-main">
+        <div class="page" data-name="home">
+
+          <!-- Navbar -->
+          <div class="navbar no-hairline no-shadow">
+            <div class="navbar-bg"></div>
+            <div class="navbar-inner align-items-flex-start">
+              <div class="left">
+                <img height="50" width="80" src="assets/bpplus-logo.svg">&nbsp;BP+ Connect
+              </div>
+              <div class="right">
+                <div class="preloader preloader-hide hidden"></div>&nbsp;
+                <a id="button-action" href="#start">
+                  <img id="button-action-image" height="80" width="80" src="assets/button-connect.svg">
+                </a>
+              </div>
+            </div>
+          </div>
+
+          <div class="tabs-swipeable-wrap">
+            <div class="tabs">
+
+              <!-- ── Tab 1: Live readings ────────────────────────────────────── -->
+              <div class="tab tab-active" id="tab1">
+                <div class="page-content bg-color-white">
+
+                  <!-- Brachial + Central results -->
+                  <div class="block-measure padding-left padding-right">
+                    <div class="row">
+                      <div id="bSys" class="col-45 measures text-align-right">---</div>
+                      <div class="col-10 measures text-align-center">/</div>
+                      <div id="bDia" class="col-45 measures text-align-left">---</div>
+                    </div>
+                    <div class="text-align-right">SYS/DIA (mmHg)</div>
+
+                    <div class="row">
+                      <div id="cSys" class="col-45 measures text-align-right">---</div>
+                      <div class="col-10 measures text-align-center">/</div>
+                      <div id="cDia" class="col-45 measures text-align-left">---</div>
+                    </div>
+                    <div class="text-align-right">SYS/DIA (mmHg)</div>
+                  </div>
+
+                  <!-- Live pressure during measurement -->
+                  <div class="block-status padding-left padding-right" style="display: none;">
+                    <div class="row">
+                      <div id="status-pressure" class="col-100 measures text-align-center">---</div>
+                    </div>
+                    <div class="text-align-right">(mmHg)</div>
+                    <div class="row">
+                      <div class="col-100 measures text-align-center">&nbsp;</div>
+                    </div>
+                    <div class="text-align-right">&nbsp;</div>
+                  </div>
+                  <div id="status-measure" class="text-align-center">&nbsp;</div>
+
+                  <!-- Patient lookup / upload (shown when ?uploadGevity=1 in URL) -->
+                  <div id="uploadGevity" style="display:none;">
+                    <div class="display-flex justify-content-center">
+                      <div style="width: 350px">
+                        <div class="list no-hairlines">
+                          <ul>
+                            <li class="item-content item-input">
+                              <div class="item-inner">
+                                <div class="item-input-wrap">
+                                  <input id="person-id" type="text" placeholder="Id or Email" value="info@healthsystemslimited.com">
+                                  <span class="input-clear-button"></span>
+                                </div>
+                              </div>
+                              <div class="item-media">
+                                <button id="lookup" class="button"><i class="fas fa-search"></i></button>
+                              </div>
+                            </li>
+                            <li class="item-content item-input">
+                              <div class="item-inner">
+                                <div class="item-title item-label">Id</div>
+                                <p class="no-margin-top no-margin-bottom" id="patient-id">-</p>
+                              </div>
+                            </li>
+                            <li class="item-content item-input">
+                              <div class="item-inner">
+                                <div class="item-title item-label">First Name</div>
+                                <p class="no-margin-top no-margin-bottom" id="patient-first">-</p>
+                              </div>
+                            </li>
+                            <li class="item-content item-input">
+                              <div class="item-inner">
+                                <div class="item-title item-label">Last Name</div>
+                                <p class="no-margin-top no-margin-bottom" id="patient-last">-</p>
+                              </div>
+                            </li>
+                          </ul>
+                        </div>
+                        <button id="upload" class="button button-fill disabled">Upload</button>
+                      </div>
+                    </div>
+                  </div>
+
+                </div>
+              </div>
+
+              <!-- ── Tab 2: Results table ────────────────────────────────────── -->
+              <div class="tab" id="tab2">
+                <div class="page-content bg-color-white">
+                  <div class="data-table card">
+                    <div class="card-header">
+                      <div class="data-table-title">Measurement Results</div>
+                    </div>
+                    <div class="card-content">
+                      <table>
+                        <thead>
+                          <tr>
+                            <th class="label-cell">Measure</th>
+                            <th class="">Units</th>
+                            <th class="numeric-cell">Result</th>
+                          </tr>
+                        </thead>
+                        <tbody></tbody>
+                      </table>
+                      <div class="results-info"></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- ── Tab 3: Waveform charts ─────────────────────────────────── -->
+              <div class="tab" id="tab3">
+                <div class="page-content bg-color-white">
+
+                  <!-- Shown before first measurement -->
+                  <div id="waveform-placeholder">
+                    Run a measurement to see waveform charts.
+                  </div>
+
+                  <!-- Chart stack — hidden until waveformDraw() is called -->
+                  <div id="waveform-charts" style="display:none;">
+
+                    <div class="wf-section">
+                      <div class="wf-title">
+                        <span class="wf-title-dot" style="background:#1565c0;"></span>
+                        Suprasystolic Rhythm &nbsp;<span class="wf-legend-beat">| beat starts</span>
+                      </div>
+                      <div class="wf-canvas-wrap"><canvas id="chart-sBaseLined"></canvas></div>
+                    </div>
+
+                    <div class="wf-section">
+                      <div class="wf-title">
+                        <span class="wf-title-dot" style="background:#2e7d32;"></span>
+                        Brachial &nbsp;<span class="wf-legend-beat">| beat starts</span>
+                      </div>
+                      <div class="wf-canvas-wrap"><canvas id="chart-baEstimate"></canvas></div>
+                    </div>
+
+                    <div class="wf-section">
+                      <div class="wf-title">
+                        <span class="wf-title-dot" style="background:#b71c1c;"></span>
+                        Central &nbsp;<span class="wf-legend-beat">| beat starts</span>
+                      </div>
+                      <div class="wf-canvas-wrap"><canvas id="chart-cEstimate"></canvas></div>
+                    </div>
+
+                    <!-- Brachial and Central average pulses side by side -->
+                    <div class="wf-section wf-avg-row">
+                      <div class="wf-avg-col">
+                        <div class="wf-title">
+                          <span class="wf-title-dot" style="background:#1565c0;"></span>
+                          Brachial Avg &nbsp;<span class="wf-legend-dot">● pts</span>
+                        </div>
+                        <div class="wf-canvas-wrap"><canvas id="chart-sAveragePulse"></canvas></div>
+                      </div>
+                      <div class="wf-avg-col">
+                        <div class="wf-title">
+                          <span class="wf-title-dot" style="background:#b71c1c;"></span>
+                          Central Avg &nbsp;<span class="wf-legend-dot">● pts</span>
+                        </div>
+                        <div class="wf-canvas-wrap"><canvas id="chart-cAveragePulse"></canvas></div>
+                      </div>
+                    </div>
+
+                  </div><!-- #waveform-charts -->
+                </div>
+              </div>
+
+              <!-- ── Tab 4: Settings ───────────────────────────────────────── -->
+              <div class="tab" id="tab4">
+                <div class="page-content bg-color-white">
+                  <div class="block">
+
+                    <p>
+                      Set the connection type — a page refresh is required after changing.<br>
+                      Serial API available: <strong id="serial-status-text">checking…</strong><br>
+                      Bluetooth API available: <strong id="bt-status-text">checking…</strong>
+                    </p>
+
+                    <div class="list no-hairlines-md">
+                      <ul>
+                        <li class="item-content item-input">
+                          <div class="item-media">
+                            <i class="icon demo-list-icon"></i>
+                          </div>
+                          <div class="item-inner">
+                            <div class="item-title item-label">Connection</div>
+                            <div class="item-input-wrap input-dropdown-wrap">
+                              <select id="connection">
+                                <option value="simulator">Simulator</option>
+                                <option value="bluetooth">Bluetooth</option>
+                                <option value="serial">Serial</option>
+                                <option value="webserial">Serial Android</option>
+                              </select>
+                            </div>
+                          </div>
+                        </li>
+                        <li class="item-content item-input">
+                          <div class="item-media">
+                            <i class="icon demo-list-icon"></i>
+                          </div>
+                          <div class="item-inner">
+                            <div class="item-title item-label">Rate</div>
+                            <div class="item-input-wrap input-dropdown-wrap">
+                              <select id="connrate">
+                                <option value="auto">Auto</option>
+                                <option value="115200">115200</option>
+                                <option value="57600">57600</option>
+                                <option value="38400">38400</option>
+                                <option value="19200">19200</option>
+                              </select>
+                            </div>
+                          </div>
+                        </li>
+                        <li class="item-content item-input">
+                          <div class="item-media">
+                            <i class="icon demo-list-icon"></i>
+                          </div>
+                          <div class="item-inner">
+                            <div class="item-title item-label">Serial Tracing</div>
+                            <div class="item-input-wrap input-dropdown-wrap">
+                              <select id="bptrace">
+                                <option value="off">Off</option>
+                                <option value="on">On</option>
+                              </select>
+                            </div>
+                          </div>
+                        </li>
+                      </ul>
+                    </div>
+                    <p style="font-size:12px; color:#888;">
+                      Serial Tracing logs every TX/RX byte to the debug area below (blue=TX, green=RX, brown=CFG).<br>
+                      A page refresh is required after changing Connection or Rate.
+                    </p>
+
+                    <p>
+                      <a href="mailto:nick@uscom.com.au">Contact</a>
+                    </p>
+                    <p>Version 0.0.1.3 — <em>local dev copy</em></p>
+
+                    <!-- Debug output area — populated by debuglog() / tracelog() -->
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                      <strong style="font-size:12px;">Debug / Trace</strong>
+                      <button class="button button-small" onclick="document.getElementById('debug').innerHTML=''">Clear</button>
+                    </div>
+                    <div id="debug" style="max-height:300px; overflow-y:auto; background:#f8f8f8; padding:4px; border:1px solid #ddd; border-radius:4px;"><p>Debug output appears here</p></div>
+
+                  </div>
+                </div>
+              </div>
+
+            </div><!-- .tabs -->
+          </div><!-- .tabs-swipeable-wrap -->
+
+        </div><!-- .page -->
+      </div><!-- #view-home -->
+
+    </div><!-- .views -->
+  </div><!-- #app -->
+
+  <!-- ── Frameworks ────────────────────────────────────────────────────────── -->
+  <script type="text/javascript" src="framework7/js/framework7.bundle.min.js"></script>
+  <!-- Chart.js must load before waveform.js which registers plugins against it -->
+  <script type="text/javascript" src="js/vendor/chart.umd.min.js"></script>
+
+  <!-- ── Application scripts (load order matters) ──────────────────────────── -->
+  <script type="text/javascript" src="js/utils.js"></script>
+  <script type="text/javascript" src="js/crc8.js"></script>
+  <script type="text/javascript" src="js/emitter.js"></script>
+  <script type="text/javascript" src="js/ble.js"></script>
+  <script type="text/javascript" src="js/bpplus-ble.js"></script>
+  <script type="text/javascript" src="js/bpplus-sim.js"></script>
+  <script type="text/javascript" src="js/bpplus-serial.js"></script>
+  <script type="text/javascript" src="js/bpplus-webserial.js"></script>
+  <script type="text/javascript" src="js/bpplus.js"></script>
+  <script type="text/javascript" src="js/waveform.js"></script>
+  <script type="text/javascript" src="js/app.js"></script>
+
+  <!-- ── Local development helpers ─────────────────────────────────────────── -->
+  <script>
+    // Populate the dev banner with real API availability info
+    (function () {
+      var serialOk  = 'serial'    in navigator;
+      var btOk      = 'bluetooth' in navigator;
+      var isSecure  = location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+      var isFile    = location.protocol === 'file:';
+
+      document.getElementById('dev-serial-status').textContent = serialOk  ? '✓' : '✗';
+      document.getElementById('dev-bt-status').textContent     = btOk      ? '✓' : '✗';
+      document.getElementById('dev-context').textContent       = isFile ? 'file:// (simulator only)' : isSecure ? 'secure ✓' : 'insecure – serial/BT unavailable';
+
+      // Also update the readable labels inside the settings tab
+      document.getElementById('serial-status-text').textContent = serialOk  ? 'yes' : 'no';
+      document.getElementById('bt-status-text').textContent     = btOk      ? 'yes' : 'no';
+
+      // Warn if serial/BT are needed but unavailable
+      if (!serialOk && !btOk && !isFile) {
+        console.warn('[LOCAL DEV] Neither Web Serial nor Web Bluetooth is available. ' +
+                     'Ensure you are on localhost or https://. Simulator mode will still work.');
+      }
+
+      // Default to simulator the very first time (before any localStorage is set)
+      if (!localStorage.getItem('bpconnection')) {
+        localStorage.setItem('bpconnection', 'simulator');
+        console.info('[LOCAL DEV] No saved connection — defaulted to "simulator".');
+      }
+    })();
+  </script>
+
+</body>
+</html>
