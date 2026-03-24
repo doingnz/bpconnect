@@ -21,10 +21,8 @@ switch(getSettingConnection()) {
     bpplus = new BpPlusWebSerial();
     break;
   case 'bluetooth':
+  case 'bluetooth-nus': // legacy value — unified class handles all profiles
     bpplus = new BpPlusBle(getSettingFlowControl());
-    break;
-  case 'bluetooth-nus':
-    bpplus = new BpPlusBleNus();
     break;
   default:
 }

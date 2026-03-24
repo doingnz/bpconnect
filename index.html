@@ -356,8 +356,7 @@
                             <div class="item-input-wrap input-dropdown-wrap">
                               <select id="connection">
                                 <option value="simulator">Simulator</option>
-                                <option value="bluetooth">Bluetooth (uConnect)</option>
-                                <option value="bluetooth-nus">Bluetooth (NUS Bridge)</option>
+                                <option value="bluetooth">Bluetooth</option>
                                 <option value="serial">Serial</option>
                                 <option value="webserial">Serial Android</option>
                               </select>
@@ -395,9 +394,10 @@
                       </ul>
                     </div>
                     <p style="font-size:12px; color:#888;">
-                      <strong>Flow Control:</strong> sets BLE adapter byte 3 (0x02=RTS/CTS, 0x00=none).
+                      <strong>Flow Control:</strong> applies to the uConnect S2B5232I adapter only (sets config byte 3: 0x02=RTS/CTS, 0x00=none).
                       For <em>Hardware</em> to work the BP+ device must also have flow control enabled
-                      (Menu → Setup → Hardware). Recommended on Android to prevent XML data loss.<br>
+                      (Menu → Setup → Hardware). Recommended on Android to prevent XML data loss.
+                      The NUS Bridge and other adapters manage flow control in firmware — this setting has no effect on them.<br>
                       <strong>Serial Tracing</strong> logs every TX/RX byte below (blue=TX, green=RX, brown=CFG).
                       CFG trace shows actual config bytes sent — verify byte 3 is 0x02 (HW FC) or 0x00 (none).<br>
                       A page refresh is required after changing Connection or Flow Control.
@@ -437,9 +437,7 @@
   <script type="text/javascript" src="js/utils.js"></script>
   <script type="text/javascript" src="js/crc8.js"></script>
   <script type="text/javascript" src="js/emitter.js"></script>
-  <script type="text/javascript" src="js/ble.js"></script>
   <script type="text/javascript" src="js/bpplus-ble.js"></script>
-  <script type="text/javascript" src="js/bpplus-ble-nus.js"></script>
   <script type="text/javascript" src="js/bpplus-sim.js"></script>
   <script type="text/javascript" src="js/bpplus-serial.js"></script>
   <script type="text/javascript" src="js/bpplus-webserial.js"></script>
@@ -452,8 +450,8 @@
     (function () {
       // ── Populate status bar from localStorage (runs before any async work) ──
       var connLabels = {
-        simulator: 'Simulator', bluetooth: 'BT uConnect',
-        'bluetooth-nus': 'BT NUS',
+        simulator: 'Simulator', bluetooth: 'Bluetooth',
+        'bluetooth-nus': 'Bluetooth',
         serial: 'Serial',       webserial: 'USB Serial'
       };
       var conn = localStorage.getItem('bpconnection') || 'simulator';
