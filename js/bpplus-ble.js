@@ -117,11 +117,11 @@ class BpPlusBle {
       filters: [
         // Service-UUID filters: work for adapters that include UUID in the ADV PDU
         ...BpPlusBle.PROFILES.map(p => ({ services: [p.serviceUuid] })),
-        // Name filters: catch devices whose NUS UUID is only in the scan response
-        // (invisible on Chrome/Windows without active scanning). The firmware
-        // advertises "BP+ Bridge" (BLE_DEVICE_NAME in main.c); "NUS Bridge" is
-        // the ble_nus.c default included as a fallback.
-        { name: 'BP+ Bridge' },
+        // Name filters: belt-and-suspenders for devices whose UUID may not yet
+        // be in the Windows BLE cache (e.g. first-time scan before the ADV PDU
+        // UUID is seen). The firmware advertises "BP+ Bridge"; "NUS Bridge" is
+        // the ble_nus.c default kept as a fallback.
+        { namePrefix: 'BP+' },
         { name: 'NUS Bridge' },
       ],
       // All service UUIDs must be listed here so the browser permits access
