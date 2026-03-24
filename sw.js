@@ -27,7 +27,6 @@ const PRECACHE = [
   './js/utils.js',
   './js/crc8.js',
   './js/emitter.js',
-  './js/ble.js',
   './js/bpplus-ble.js',
   './js/bpplus-sim.js',
   './js/bpplus-serial.js',
