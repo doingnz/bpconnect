@@ -23,6 +23,9 @@ switch(getSettingConnection()) {
   case 'bluetooth':
     bpplus = new BpPlusBle(getSettingFlowControl());
     break;
+  case 'bluetooth-nus':
+    bpplus = new BpPlusBleNus();
+    break;
   default:
 }
 

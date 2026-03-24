@@ -356,7 +356,8 @@
                             <div class="item-input-wrap input-dropdown-wrap">
                               <select id="connection">
                                 <option value="simulator">Simulator</option>
-                                <option value="bluetooth">Bluetooth</option>
+                                <option value="bluetooth">Bluetooth (uConnect)</option>
+                                <option value="bluetooth-nus">Bluetooth (NUS Bridge)</option>
                                 <option value="serial">Serial</option>
                                 <option value="webserial">Serial Android</option>
                               </select>
@@ -438,6 +439,7 @@
   <script type="text/javascript" src="js/emitter.js"></script>
   <script type="text/javascript" src="js/ble.js"></script>
   <script type="text/javascript" src="js/bpplus-ble.js"></script>
+  <script type="text/javascript" src="js/bpplus-ble-nus.js"></script>
   <script type="text/javascript" src="js/bpplus-sim.js"></script>
   <script type="text/javascript" src="js/bpplus-serial.js"></script>
   <script type="text/javascript" src="js/bpplus-webserial.js"></script>
@@ -450,7 +452,8 @@
     (function () {
       // ── Populate status bar from localStorage (runs before any async work) ──
       var connLabels = {
-        simulator: 'Simulator', bluetooth: 'Bluetooth',
+        simulator: 'Simulator', bluetooth: 'BT uConnect',
+        'bluetooth-nus': 'BT NUS',
         serial: 'Serial',       webserial: 'USB Serial'
       };
       var conn = localStorage.getItem('bpconnection') || 'simulator';
