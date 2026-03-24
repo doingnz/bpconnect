@@ -29,8 +29,15 @@ class BpPlusBleNus {
   register(type, fn) { this._event.on(type, fn); }
 
   connect() {
+    // Filter by device name rather than service UUID: the NUS 128-bit UUID is
+    // in the scan response, but Chrome on Windows (WinRT stack) does not do
+    // active scanning, so a services filter never matches. The device name
+    // "NUS Bridge" is in the advertising PDU and is always visible.
+    // optionalServices must list the NUS UUID so the browser permits access
+    // to it after connection.
     navigator.bluetooth.requestDevice({
-      filters: [{ services: [BpPlusBleNus.SERVICE_UUID] }]
+      filters: [{ name: 'NUS Bridge' }],
+      optionalServices: [BpPlusBleNus.SERVICE_UUID]
     })
     .then(device => {
       this._device = device;
