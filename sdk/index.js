@@ -29,7 +29,7 @@ export {
   parseSummaryLine,
 } from './device/bpplus-device.js';
 
-export { BpPlusMeasurement } from './device/measurement.js';
+export { BpPlusMeasurement, decodeUint16Base64 } from './device/measurement.js';
 
 export {
   BpPlusFeatures,

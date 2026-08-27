@@ -392,3 +392,21 @@ Make navbar transparent
     opacity: 0.4;
     pointer-events: none;
 }
+
+/* Double height, for the plots where the vertical detail is the point:
+   the average pulses (feature points are read off them) and the raw
+   pressure ramps (the whole shape matters). */
+.wf-canvas-wrap.wf-tall { height: 260px; }
+
+.wf-legend-ref {
+    font-size: 10px;
+    color: #888;
+    font-weight: 400;
+}
+
+.wf-note {
+    padding: 10px 16px 18px;
+    font-size: 12px;
+    line-height: 1.5;
+    color: #888;
+}

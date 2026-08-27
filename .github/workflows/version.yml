@@ -20,7 +20,9 @@ jobs:
           COMMIT=$(git rev-parse --short HEAD)
           DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)
           BUILD=$(git rev-list --count HEAD)
-          VERSION="0.1.${BUILD}"
+          # Bump SERIES for a feature release; BUILD is the commit count.
+          SERIES="0.2"
+          VERSION="${SERIES}.${BUILD}"
 
           echo "Version: ${VERSION}  Commit: ${COMMIT}  Build: ${BUILD}"
 

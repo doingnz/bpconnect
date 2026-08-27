@@ -65,7 +65,7 @@ bpconnect/
 │   ├── tab-measure.js             Tab 1 — live readings
 │   ├── measure-setup.js           Tab 1 — mode, patient ID, AOBP protocol
 │   ├── tab-results.js             Tab 2 — results table and per-reading list
-│   ├── tab-waveform.js            Tab 3 — Chart.js pulse waves
+│   ├── tab-waveform.js            Tab 3 — Chart.js pulse waves and raw pressure
 │   ├── tab-settings.js            Tab 4 — connection, tracing, provisioning
 │   └── tab-firmware.js            Tab 5 — firmware update (hidden by default)
 │
@@ -251,7 +251,7 @@ Not implemented yet (phase 2). The two things most likely to be got wrong:
 |---|---|
 | 1 | Live brachial and central readings; cuff pressure during a measurement; status and any failure message |
 | 2 | Full results table, the individual readings for AOBP and BP+ [3], and the measurement metadata |
-| 3 | Five Chart.js pulse-wave charts |
+| 3 | Pulse-wave charts, the two average pulses, and the raw pressure recordings — one cuff ramp per BP reading, then the suprasystolic channel |
 | 4 | Connection, flow control, tracing; what the browser supports; writing a setting to the device; the debug and trace pane |
 | 5 | Firmware update. Hidden unless switched on in Settings — a service action, not something a clinical user should meet on the way to a measurement |
 

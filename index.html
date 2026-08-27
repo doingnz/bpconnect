@@ -16,7 +16,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, minimal-ui, viewport-fit=cover">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="theme-color" content="#2196f3">
-  <title>BP+ Connect [LOCAL DEV]</title>
+  <title>BP+ Connect</title>
 
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
   <link rel="apple-touch-icon" sizes="120x120" href="apple-touch-icon-120.png">
@@ -372,23 +372,42 @@
                       <div class="wf-canvas-wrap"><canvas id="chart-cEstimate"></canvas></div>
                     </div>
 
-                    <!-- Brachial and Central average pulses side by side -->
+                    <!-- Average pulses. Double height: these are the plots the
+                         feature points are read off, so the vertical detail is
+                         the whole point of them. -->
                     <div class="wf-section wf-avg-row">
                       <div class="wf-avg-col">
                         <div class="wf-title">
                           <span class="wf-title-dot" style="background:#1565c0;"></span>
-                          Brachial Avg &nbsp;<span class="wf-legend-dot">● pts</span>
+                          Suprasystolic Average Pulse &nbsp;<span class="wf-legend-dot">● pts</span>
                         </div>
-                        <div class="wf-canvas-wrap"><canvas id="chart-sAveragePulse"></canvas></div>
+                        <div class="wf-canvas-wrap wf-tall"><canvas id="chart-sAveragePulse"></canvas></div>
                       </div>
                       <div class="wf-avg-col">
                         <div class="wf-title">
                           <span class="wf-title-dot" style="background:#b71c1c;"></span>
-                          Central Avg &nbsp;<span class="wf-legend-dot">● pts</span>
+                          Central Average Pulse &nbsp;<span class="wf-legend-dot">● pts</span>
                         </div>
-                        <div class="wf-canvas-wrap"><canvas id="chart-cAveragePulse"></canvas></div>
+                        <div class="wf-canvas-wrap wf-tall"><canvas id="chart-cAveragePulse"></canvas></div>
                       </div>
                     </div>
+
+                    <!-- ── Raw recordings ──────────────────────────────────── -->
+
+                    <!-- One cuff recording per BP determination, built at run
+                         time because the count varies with the measurement
+                         mode: one for BP+, three for AOBP and BP+ [3]. -->
+                    <div id="wf-cuff-plots"></div>
+
+                    <div class="wf-section" id="wf-suprasystolic-section">
+                      <div class="wf-title">
+                        <span class="wf-title-dot" style="background:#1565c0;"></span>
+                        Raw Suprasystolic Pressure
+                      </div>
+                      <div class="wf-canvas-wrap wf-tall"><canvas id="chart-rawSuprasystolic"></canvas></div>
+                    </div>
+
+                    <div id="wf-raw-note" class="wf-note" style="display:none;"></div>
 
                   </div><!-- #waveform-charts -->
                 </div>
