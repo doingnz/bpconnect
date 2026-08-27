@@ -267,7 +267,7 @@ function _renderRawRecordings(measurement) {
                 escapeHtml(label) +
                 '&nbsp;<span class="wf-legend-ref">| SYS / MAP / DIA</span>' +
               '</div>' +
-              '<div class="wf-canvas-wrap wf-tall"><canvas id="' + canvasId + '"></canvas></div>' +
+              '<div class="wf-canvas-wrap wf-cuff"><canvas id="' + canvasId + '"></canvas></div>' +
             '</div>');
 
         _renderPressureChart(canvasId, recording, '#2e7d32', [

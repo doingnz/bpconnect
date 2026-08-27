@@ -42,6 +42,9 @@ export function initMeasure() {
     detail:   document.getElementById('status-detail'),
     measureBlock: document.querySelector('.block-measure'),
     statusBlock:  document.querySelector('.block-status'),
+    qualityBlock: document.getElementById('quality-block'),
+    qualityRhythm: document.getElementById('quality-rhythm'),
+    qualitySnr:    document.getElementById('quality-snr'),
   };
   clearMeasure();
 }
@@ -58,6 +61,7 @@ export function showMeasureResults(measurement) {
 
   showBlock('measure');
   statusHeld = true;
+  showQuality(measurement);
 
   const readings = measurement.readings || [];
   if (readings.length > 1) {
@@ -74,6 +78,7 @@ export function showMeasureResults(measurement) {
 export function clearMeasure() {
   stopRestCountdown();
   statusHeld = false;
+  hideQuality();
   setText(elements.bSys, BLANK);
   setText(elements.bDia, BLANK);
   setText(elements.cSys, BLANK);
@@ -90,6 +95,7 @@ export function clearMeasure() {
 export function beginMeasure(restSeconds = null) {
   stopRestCountdown();
   statusHeld = false;
+  hideQuality();
   setText(elements.pressure, BLANK);
   showBlock('status');
   setStatus('Starting', '');
@@ -101,6 +107,12 @@ let pendingRestSeconds = null;
 /** A cuff pressure notification. */
 export function showPressure(mmHg) {
   setText(elements.pressure, String(mmHg).padStart(3, '0'));
+
+  // Each reading of a multi-reading protocol has its own inflation, and that
+  // is the only signal a host gets that one has started - see readingLabel().
+  if (countInflation(mmHg) && !statusHeld) {
+    setStatus('Measuring blood pressure', readingLabel());
+  }
 }
 
 /**
@@ -131,6 +143,8 @@ export function showMode(mode) {
       setStatus('Waiting', 'Select a position on the device');
       break;
     case DeviceMode.measuringBp:
+      // The label comes from the pressure stream, not from here: the device
+      // sends this mode once for the whole sequence.
       setStatus(mode.text, readingLabel());
       break;
     case DeviceMode.processData:
@@ -162,23 +176,59 @@ function isActivity(code) {
 }
 
 /**
- * In a multi-reading protocol the device sends M 03 once per reading, with no
- * index. Counting them is the only way to say which one is running, and
- * "reading 2 of 3" is what an operator standing next to the cuff wants.
+/**
+ * Which reading of a multi-reading protocol is running.
+ *
+ * The device does NOT announce this. It shows "reading n of m" on its own
+ * screen, but it stays in the measuring mode for the whole sequence: between
+ * readings it starts the next one directly, without a mode change, so a host
+ * sees exactly one M 03 however many readings the protocol takes. Counting
+ * mode notifications can only ever report the first.
+ *
+ * What the device does send is the cuff pressure, and every reading has its
+ * own inflate and deflate. So the count comes from the pressure stream: a
+ * reading begins when the cuff rises past a threshold, having previously been
+ * near empty. That is an inference rather than a report, so it is capped at
+ * the number of readings asked for and never runs past it.
  */
-let readingCount = 0;
+
+/** Cuff pressure below which the cuff counts as empty, mmHg. */
+const CUFF_EMPTY_MMHG = 10;
+
+/** Cuff pressure above which an inflation counts as under way, mmHg. */
+const CUFF_INFLATED_MMHG = 40;
+
 let expectedReadings = 0;
+let readingCount = 0;
+let cuffEmpty = true;
 
 export function setExpectedReadings(count) {
   expectedReadings = count || 0;
   readingCount = 0;
+  cuffEmpty = true;
+}
+
+/**
+ * Update the reading count from a cuff pressure sample.
+ * @returns {boolean} true when this sample started a new reading
+ */
+function countInflation(mmHg) {
+  if (mmHg <= CUFF_EMPTY_MMHG) {
+    cuffEmpty = true;
+    return false;
+  }
+  if (!cuffEmpty || mmHg < CUFF_INFLATED_MMHG) return false;
+
+  cuffEmpty = false;
+  if (readingCount < expectedReadings) readingCount++;
+  return true;
 }
 
 function readingLabel() {
-  if (expectedReadings <= 1) return '';
-  readingCount += 1;
-  return `Reading ${Math.min(readingCount, expectedReadings)} of ${expectedReadings}`;
+  if (expectedReadings <= 1 || readingCount < 1) return '';
+  return `Reading ${readingCount} of ${expectedReadings}`;
 }
+
 
 function startRestCountdown(seconds) {
   stopRestCountdown();
@@ -230,6 +280,55 @@ export function showError(error) {
   statusHeld = true;
   showBlock('measure');
   setStatus('Not measured', error.message);
+}
+
+/**
+ * Rhythm and signal quality, under the readings.
+ *
+ * Both are stated either way round rather than shown only when there is
+ * something wrong: "no irregular rhythm" is a result, and its absence would
+ * leave the operator wondering whether the check had run.
+ */
+function showQuality(measurement) {
+  if (!elements.qualityBlock) return;
+
+  const rhythm = measurement.rhythm;
+  const quality = measurement.signalQuality;
+
+  if (!rhythm.known && !quality.known) {
+    hideQuality();
+    return;
+  }
+
+  elements.qualityBlock.style.display = '';
+
+  if (elements.qualityRhythm) {
+    if (!rhythm.known) {
+      elements.qualityRhythm.textContent = '';
+    } else if (rhythm.irregular) {
+      elements.qualityRhythm.className = 'quality-line quality-irregular';
+      elements.qualityRhythm.innerHTML =
+        `<b>Irregular heart rhythm detected</b> (sPRV = ${Math.round(rhythm.sPRV)} ms)`;
+    } else {
+      elements.qualityRhythm.className = 'quality-line quality-regular';
+      elements.qualityRhythm.innerHTML = '<b>No irregular rhythm</b>';
+    }
+  }
+
+  if (elements.qualitySnr) {
+    if (!quality.known) {
+      elements.qualitySnr.textContent = '';
+    } else {
+      elements.qualitySnr.className =
+        'quality-line quality-' + quality.label.toLowerCase();
+      elements.qualitySnr.innerHTML =
+        `Signal quality <b>${quality.label}</b> (SNR = ${quality.snr} dB)`;
+    }
+  }
+}
+
+function hideQuality() {
+  if (elements.qualityBlock) elements.qualityBlock.style.display = 'none';
 }
 
 export function setStatus(text, detail = '') {

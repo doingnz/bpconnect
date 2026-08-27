@@ -379,7 +379,9 @@ async function aobpEndToEnd() {
   );
 
   const modes = [];
+  const pressures = [];
   device.on('mode', m => modes.push(m.code));
+  device.on('pressure', p => pressures.push(p));
 
   await device.connect();
 
@@ -393,7 +395,14 @@ async function aobpEndToEnd() {
 
   check('aobp: M 22 was sent before the readings',
     modes.indexOf(22) >= 0 && modes.indexOf(22) < modes.indexOf(3), modes.join(','));
-  equal('aobp: one M 03 per reading', modes.filter(c => c === 3).length, 3);
+
+  // The device stays in the measuring mode for the whole sequence, so a host
+  // sees ONE M 03 however many readings the protocol takes. Counting mode
+  // notifications cannot tell you which reading is running; the cuff cycles in
+  // the pressure stream can.
+  equal('aobp: one M 03 for the whole sequence', modes.filter(c => c === 3).length, 1);
+  check('aobp: one cuff inflation per reading',
+    countInflations(pressures) === 3, `${countInflations(pressures)} from ${pressures.join(',')}`);
 
   equal('aobp: the result is version 7.0', result.version, '7.0');
   check('aobp: it is recognised as multi-reading', result.isMultiReading);
@@ -567,6 +576,17 @@ async function endToEnd() {
 
 function decode(bytes) {
   return bytes === null ? null : new TextDecoder().decode(bytes);
+}
+
+/** Rising crossings of an inflated threshold, from an empty cuff. */
+function countInflations(pressures) {
+  let count = 0;
+  let empty = true;
+  for (const mmHg of pressures) {
+    if (mmHg <= 10) { empty = true; continue; }
+    if (empty && mmHg >= 40) { count++; empty = false; }
+  }
+  return count;
 }
 
 function pause(ms) {

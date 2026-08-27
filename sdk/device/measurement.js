@@ -23,6 +23,7 @@
  */
 
 import { receiveError } from '../core/errors.js';
+import { describeSignalQuality, describeRhythm } from '../constants.js';
 
 export class BpPlusMeasurement {
 
@@ -119,6 +120,23 @@ export class BpPlusMeasurement {
       sRWTTPeak:  this.number('sRWTTPeak'),
       sDpDtMax:   this.number('sDpDtMax'),
     };
+  }
+
+  /**
+   * Signal quality, from the suprasystolic capture's signal-to-noise ratio.
+   * @returns {{snr, label, usable, known}}
+   */
+  get signalQuality() {
+    return describeSignalQuality(this.number('SNR'));
+  }
+
+  /**
+   * Whether the rhythm was irregular, from the pulse-rate variability measured
+   * during the suprasystolic capture.
+   * @returns {{sPRV, irregular, known}}
+   */
+  get rhythm() {
+    return describeRhythm(this.number('sPRV'));
   }
 
   get alert() {

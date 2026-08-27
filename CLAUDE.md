@@ -137,6 +137,7 @@ cause bugs that look like something else:
 - **Firmware update acknowledges with `W` and `K <index>`, not `F 99`.** The specification says F 99 in §2.7 and Table 5; the firmware never sends it. `F 51` means "too early, ask again" and is the only retryable response.
 - **Cancel a firmware transfer between packets only.** A `k` already on the wire is still processed, its orphaned `K` comes back with nobody waiting, and the device answers it with an extra `F 50`. This is the ONLY unrequested `F` in the protocol; `Session.expectStrayFailure()` absorbs exactly one, armed by the update job and nothing else.
 - **`M nn` is sent on every mode change, not only when asked.** Do not poll `m` to watch the device — subscribe to `device.on('mode')`. The single `m` worth sending is one at connect, to learn the state nothing has announced yet.
+- **A multi-reading protocol reports ONE `M 03` for the whole sequence.** The device stays in the measuring mode between readings and starts the next one without a mode change, so mode notifications cannot tell you which reading is running. The cuff cycles in the `P nnn` stream can.
 
 ---
 

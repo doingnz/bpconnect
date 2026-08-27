@@ -410,3 +410,25 @@ Make navbar transparent
     line-height: 1.5;
     color: #888;
 }
+
+/* The cuff ramp is the longest recording and the one whose shape carries the
+   most detail, so it gets half again on top of the other tall plots. */
+.wf-canvas-wrap.wf-cuff { height: 390px; }
+
+/* ── Measurement quality, under the readings on tab 1 ──────────────────────── */
+.quality-line {
+    text-align: center;
+    font-size: 13px;
+    line-height: 1.6;
+    color: #555;
+}
+
+.quality-line b { font-weight: 600; }
+.quality-irregular b { color: #b71c1c; }
+.quality-regular b   { color: #2e7d32; }
+
+.quality-invalid b    { color: #b71c1c; }
+.quality-poor b       { color: #c62828; }
+.quality-acceptable b { color: #8d6e00; }
+.quality-good b       { color: #2e7d32; }
+.quality-excellent b  { color: #2e7d32; }

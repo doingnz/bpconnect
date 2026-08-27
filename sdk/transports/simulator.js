@@ -565,16 +565,19 @@ export class SimulatorTransport extends Transport {
     const readingIndex = Math.floor(readingStep / perReading);
 
     if (readingIndex < protocol.repeats) {
+      // One M 03 for the whole sequence, as the device does: between readings
+      // it starts the next one without changing mode. The cuff cycle in the
+      // pressure stream is the only per-reading signal a host receives.
       switch (readingStep % perReading) {
         case 0:
-          this._setMode(DeviceMode.measuringBp);
+          if (readingIndex === 0) this._setMode(DeviceMode.measuringBp);
           this._send('P 000');
           break;
         case 1:
           this._send('P 140');
           break;
         default:
-          this._setMode(DeviceMode.deflatingCuff);
+          this._send('P 005');
           break;
       }
       return;

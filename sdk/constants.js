@@ -243,6 +243,55 @@ export const AobpDefaults = Object.freeze({
   standing: { initialDelaySeconds:  60, repeatDelaySeconds: 30, repeats: 2 },
 });
 
+// ── Measurement quality ──────────────────────────────────────────
+
+/**
+ * Signal-to-noise bands, in dB. Every band closes inclusively at its upper
+ * edge, and the reported SNR is a whole number, so the boundary values are a
+ * real population rather than a rounding curiosity.
+ *
+ * Invalid is not a theoretical floor: a measurement the device has decided not
+ * to trust has its reported SNR set to zero, which lands here.
+ */
+export const SIGNAL_QUALITY_BANDS = Object.freeze([
+  { max: 0,        label: 'Invalid',    usable: false },
+  { max: 6,        label: 'Poor',       usable: false },
+  { max: 9,        label: 'Acceptable', usable: true  },
+  { max: 12,       label: 'Good',       usable: true  },
+  { max: Infinity, label: 'Excellent',  usable: true  },
+]);
+
+/**
+ * Classify a signal-to-noise ratio.
+ * @param {number|null} snr  in dB
+ * @returns {{snr: number|null, label: string, usable: boolean, known: boolean}}
+ */
+export function describeSignalQuality(snr) {
+  if (snr === null || snr === undefined || !Number.isFinite(snr)) {
+    return { snr: null, label: 'Unknown', usable: false, known: false };
+  }
+  const band = SIGNAL_QUALITY_BANDS.find(b => snr <= b.max);
+  return { snr, label: band.label, usable: band.usable, known: true };
+}
+
+/**
+ * Pulse-rate variability above which the rhythm is reported as irregular, in
+ * milliseconds. sPRV is the RMSSD of the beat intervals during the
+ * suprasystolic capture.
+ */
+export const IRREGULAR_RHYTHM_SPRV_MS = 100;
+
+/**
+ * @param {number|null} sPRV  in milliseconds
+ * @returns {{sPRV: number|null, irregular: boolean, known: boolean}}
+ */
+export function describeRhythm(sPRV) {
+  if (sPRV === null || sPRV === undefined || !Number.isFinite(sPRV)) {
+    return { sPRV: null, irregular: false, known: false };
+  }
+  return { sPRV, irregular: sPRV > IRREGULAR_RHYTHM_SPRV_MS, known: true };
+}
+
 // ── Misc protocol limits ────────────────────────────────────────────────────
 
 export const NIBP_INFLATION_TARGETS = Object.freeze([
