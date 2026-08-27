@@ -631,4 +631,4 @@ device.on('log', ({ dir, text, at }) => {
 });
 ```
 
-Contact: <nick@uscom.com.au>
+Contact: <richard.scott@uscom.com.au>
