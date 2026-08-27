@@ -133,6 +133,7 @@ function initProvisioning() {
   }
 
   apply?.addEventListener('click', () => applyMeasureMode());
+  $('features-read')?.addEventListener('click', () => readFeatures());
 
   refreshProvisioning();
 }
@@ -151,6 +152,10 @@ function refreshProvisioning() {
   const modes     = $('provision-measure-mode');
 
   if (apply) apply.disabled = !connected || !features || !features.deviceId;
+
+  // Reading is safe in any mode, so it only needs a connection.
+  const read = $('features-read');
+  if (read) read.disabled = !connected;
 
   if (strip) {
     if (!connected) {
@@ -178,6 +183,74 @@ function refreshProvisioning() {
     modes.value = String(features.measureMode);
   }
   modes?.addEventListener('change', () => { modes.dataset.touched = '1'; }, { once: true });
+}
+
+/**
+ * Read the feature list and show it.
+ *
+ * Safe in any device mode and changes nothing, which is why it sits above the
+ * write controls rather than among them: it is the thing to reach for first
+ * when a device is not behaving, and it costs nothing to press.
+ */
+async function readFeatures() {
+  const button = $('features-read');
+  const output = $('features-output');
+  if (!button || !output) return;
+
+  button.disabled = true;
+  output.style.display = '';
+  output.textContent = 'Reading…';
+
+  try {
+    const features = await device.readFeatures();
+    output.innerHTML = renderFeatures(features);
+    log(`Feature list read from ${features.deviceId}.`);
+    onProvisioned();
+  } catch (error) {
+    output.innerHTML = '<b>The device did not return a feature list.</b><br>' +
+                       escapeHtml(error.message);
+    log(`Could not read the feature list: ${error.message}`, 'error');
+  } finally {
+    refreshProvisioning();
+  }
+}
+
+function renderFeatures(features) {
+  const range = features.bpRange;
+  const rows = [
+    ['Device ID',         features.deviceId],
+    ['Software',          features.softwareVersion],
+    ['Firmware',          features.firmwareVersion],
+    ['Hardware',          features.hardware],
+    ['Measurement mode',  features.measureMode === null
+                            ? 'not reported'
+                            : `${features.measureModeInfo.label} (${features.measureMode})`],
+    ['NIBP module',       features.nibpType],
+    ['NIBP version',      features.nibpVersion],
+    ['NIBP serial',       features.nibpId],
+    ['PCB',               features.pcbId],
+    ['Theme',             features.themeId],
+    ['File prefix',       features.filePrefix],
+    ['File counter',      features.filePrefixCount],
+    ['Feature list',      `version ${features.version}`],
+    ['SYS range',         range && range.sys ? `${range.sys.min}–${range.sys.max} mmHg` : null],
+    ['DIA range',         range && range.dia ? `${range.dia.min}–${range.dia.max} mmHg` : null],
+    ['MAP range',         range && range.map ? `${range.map.min}–${range.map.max} mmHg` : null],
+    ['Pulse range',       range && range.hr  ? `${range.hr.min}–${range.hr.max} bpm` : null],
+  ];
+
+  const body = rows
+    .filter(([, value]) => value !== null && value !== undefined && value !== '')
+    .map(([label, value]) =>
+      `<tr><td>${label}</td><td>${escapeHtml(String(value).trim())}</td></tr>`)
+    .join('');
+
+  const repaired = features.wasRepaired
+    ? '<p class="setup-help">This device’s feature list needed its closing tags ' +
+      'repaired before it would parse.</p>'
+    : '';
+
+  return `<table>${body}</table>${repaired}`;
 }
 
 async function applyMeasureMode() {

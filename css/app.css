@@ -432,3 +432,41 @@ Make navbar transparent
 .quality-acceptable b { color: #8d6e00; }
 .quality-good b       { color: #2e7d32; }
 .quality-excellent b  { color: #2e7d32; }
+
+/* Cancel during a firmware transfer is destructive enough to look like it, and
+   the disabled state has to read as "this button, not yet" rather than as a
+   different control. So: red when it can be pressed, washed red when it
+   cannot — not grey, which loses the association. */
+.fw-cancel-button {
+    background: #c62828;
+    color: #fff;
+}
+
+.fw-cancel-button:disabled,
+.fw-cancel-button.disabled {
+    background: #f2dede;
+    color: #b58686;
+    opacity: 1;            /* the colour carries the state, not transparency */
+}
+
+/* ── Feature list readout ──────────────────────────────────────────────────── */
+.features-output {
+    margin: 10px 0 4px;
+    border: 1px solid #e0e0e0;
+    border-radius: 4px;
+    background: #fbfbfb;
+    padding: 8px 10px;
+    font-size: 12px;
+    line-height: 1.6;
+}
+
+.features-output table { width: 100%; border-collapse: collapse; }
+.features-output td { padding: 3px 0; border-bottom: 1px solid #f0f0f0; vertical-align: top; }
+.features-output tr:last-child td { border-bottom: none; }
+.features-output td:first-child { color: #888; width: 45%; }
+.features-output td:last-child {
+    text-align: right;
+    font-weight: 500;
+    word-break: break-all;
+    font-variant-numeric: tabular-nums;
+}

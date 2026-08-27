@@ -70,6 +70,8 @@ export function initFirmwareTab(options) {
     $('fw-cancel').disabled = true;
   });
 
+  $('fw-restart')?.addEventListener('click', () => restartDevice());
+
   const toggle = $('bpfirmware');
   if (toggle) toggle.value = settings.firmwareTabEnabled ? 'on' : 'off';
 
@@ -231,8 +233,8 @@ async function startUpdate() {
       restartRequired = true;
       setNotice('fw-outcome', 'warn',
         '<b>Transfer cancelled.</b> Nothing was installed and the BP+ still has ' +
-        'its current firmware. <b>Restart the device</b> and return it to the ' +
-        'Service Menu before sending another update.');
+        'its current firmware. Use <b>Restart the BP+</b> below, then return the ' +
+        'device to the Service Menu before sending another update.');
       log('Firmware update cancelled.', 'warn');
     } else {
       restartRequired = false;
@@ -258,6 +260,43 @@ async function startUpdate() {
     // notifications like any other. A failure leaves it where it was and says
     // nothing further, so ask once rather than showing a stale screen name.
     if (!deviceMode) syncMode();
+    refresh();
+  }
+}
+
+/**
+ * Restart the device with `q`.
+ *
+ * A cancelled or failed transfer holds the update storage until the device
+ * reboots, and without this the operator has to pull the power. The device is
+ * responsive after a cancel, so the soft restart works — it is only a device
+ * that has actually stopped answering that needs the plug, and that is a
+ * different situation with its own message.
+ */
+async function restartDevice() {
+  if (!device || job) return;
+
+  const ok = await confirmAction(
+    'Restart the BP+?\n\n' +
+    'It will run its self-test and come back at the Ready screen, so it has to ' +
+    'be walked back to the Service Menu before another update.'
+  );
+  if (!ok) return;
+
+  $('fw-restart').disabled = true;
+  appendLog('Restarting the device…');
+
+  try {
+    await device.reboot();
+    appendLog('The device restarted.');
+    log('BP+ restarted.');
+    // restartRequired is cleared by the boot notification, not from here:
+    // the device saying it restarted is better evidence than this call
+    // returning.
+  } catch (error) {
+    appendLog(`The restart did not complete: ${error.message}`);
+    log(`Restart failed: ${error.message}`, 'error');
+  } finally {
     refresh();
   }
 }
@@ -305,6 +344,11 @@ function refresh() {
   const browse = $('fw-browse');
   if (browse) browse.disabled = running;
 
+  // Restarting is what clears a restart-required lockout, so it stays
+  // available whenever the device is connected and nothing is in flight.
+  const restart = $('fw-restart');
+  if (restart) restart.disabled = running || !connected;
+
   renderDeviceStrip({ connected, inServiceMenu, running });
 }
 
@@ -327,9 +371,9 @@ function renderDeviceStrip({ connected, inServiceMenu, running }) {
     strip.innerHTML =
       '<b>Restart the BP+ before trying again.</b> An abandoned transfer keeps ' +
       'hold of the update storage until the device reboots, and repeating the ' +
-      'attempt without restarting can stop it responding altogether. Power-cycle ' +
-      'the BP+ and walk it back to the Service Menu — this page will notice when ' +
-      'it restarts.';
+      'attempt without restarting can stop it responding altogether. Use ' +
+      '<b>Restart the BP+</b> below, then walk the device back to the Service ' +
+      'Menu — this page will notice when it restarts.';
     return;
   }
 

@@ -510,6 +510,11 @@
                          the value already matches. Kept off the measurement screen
                          and behind the switch above. See app/tab-settings.js. -->
                     <div id="provisioning-panel" style="display:none;">
+
+                      <div class="setup-group-title">Read the device feature list</div>
+                      <button id="features-read" class="button" type="button" disabled>Read features</button>
+                      <div id="features-output" class="features-output" style="display:none;"></div>
+
                       <div class="setup-group-title">Write settings to the device</div>
 
                       <div id="provisioning-device" class="inline-notice" style="display:none;"></div>
@@ -605,7 +610,8 @@
 
                     <div class="fw-buttons">
                       <button id="fw-apply" class="button button-fill" type="button" disabled>Apply</button>
-                      <button id="fw-cancel" class="button" type="button" disabled>Cancel</button>
+                      <button id="fw-cancel" class="button fw-cancel-button" type="button" disabled>Cancel</button>
+                      <button id="fw-restart" class="button" type="button" disabled>Restart the BP+</button>
                     </div>
 
                     <div id="fw-outcome" class="inline-notice" style="display:none;"></div>
