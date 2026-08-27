@@ -240,27 +240,21 @@ async function firmwareUpdateEndToEnd() {
     await device.disconnect();
   }
 
-  // ── A complete transfer, after two F 51 refusals ──────────────────────────
+  // ── A complete transfer ───────────────────────────────────────────
   {
-    const transport = new SimulatorTransport({ tickMs: 5, warmUpRefusals: 2 });
+    const transport = new SimulatorTransport({ tickMs: 5 });
     const device = new BpPlusDevice(transport);
     await device.connect();
     transport.enterServiceMenu();
 
     const job = device.prepareFirmwareUpdate(image);
     const states = [];
-    const logs = [];
     job.on('state', s => states.push(s));
-    job.on('log', m => logs.push(m));
 
     let lastProgress = null;
     job.on('progress', p => { lastProgress = p; });
 
-    const outcome = await job.run();
-
-    equal('firmware: the transfer completed', outcome, 'complete');
-    check('firmware: it retried the two F 51 refusals',
-      logs.filter(m => /F 51/.test(m)).length === 2, logs.join(' | '));
+    equal('firmware: the transfer completed', await job.run(), 'complete');
     check('firmware: it passed through every state',
       states.join(',').includes('opening,transferring,validating,installing,complete'),
       states.join(','));

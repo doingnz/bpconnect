@@ -1,12 +1,12 @@
 /**
  * Firmware update over the Terminal API — the `w`, `k` and `v` commands.
  *
- *   w <updateID>,<firmwareLength>,<packetSize>   ->  W          | F 50 | F 51
+ *   w <updateID>,<firmwareLength>,<packetSize>   ->  W          | F 50
  *   k <index>,<base64>                           ->  K <index>  | F 50
  *   v                                            ->  M 01, then reboot | F 50
  *   c                                            ->  F 50, session abandoned
  *
- * Four things here are not obvious, and each one costs a whole upload to
+ * Three things here are not obvious, and each one costs a whole upload to
  * discover:
  *
  * 1. THE ACKNOWLEDGEMENTS ARE `W` AND `K <index>`. They are not F codes, and
@@ -15,12 +15,7 @@
  *    and nothing more is coming, which is the opposite of what an
  *    acknowledgement says.
  *
- * 2. `F 51` IS NOT A FAILURE. It means the request was early — the update
- *    storage is still warming up — and the host should send the identical
- *    command again after a few seconds. It is the one firmware-update response
- *    that invites a retry, and only `w` can answer it.
- *
- * 3. `F 50` FROM `w` MEANS RESTART, NOT RETRY. It says the device could not
+ * 2. `F 50` FROM `w` MEANS RESTART, NOT RETRY. It says the device could not
  *    open update storage, which is almost always an earlier transfer still
  *    holding the region — nothing releases it before the next boot. Each
  *    attempt that opens a session and is then abandoned adds another
@@ -29,7 +24,7 @@
  *    dead buttons, frozen display, and only a power cycle recovers it. So
  *    this class NEVER retries `w` after F 50.
  *
- * 4. CANCEL BETWEEN PACKETS. A `k` already on the wire when `c` arrives is
+ * 3. CANCEL BETWEEN PACKETS. A `k` already on the wire when `c` arrives is
  *    still processed; its `K` comes back with nobody waiting, and the device
  *    then answers the orphaned packet with an EXTRA F 50. A button press at
  *    the device cancels too and cannot be timed, so a host must tolerate that
@@ -68,9 +63,6 @@ export const FirmwareUpdateState = Object.freeze({
   cancelled:    'cancelled',
 });
 
-/** How long the storage warm-up takes; F 51 says "ask again". */
-const WARM_UP_RETRY_MS = 3000;
-const WARM_UP_MAX_WAIT_MS = 60000;
 
 /**
  * Abandoning a session erases the storage it claimed, and that erase does not
@@ -95,8 +87,7 @@ export class FirmwareUpdateJob extends Emitter {
    * @param {Uint8Array} image  the .nmf contents
    * @param {object} [options]
    * @param {number} [options.packetSize]
-   *        512 by default, and there is no reason to change it: 128 and 256
-   *        are accepted by `w` and then open no session.
+   *        512, the only size the device accepts.
    * @param {boolean} [options.requireServiceMenu]
    *        true by default. `w`/`k`/`v` are only accepted from the Service
    *        Menu; anywhere else answers F 14. Checking first turns a confusing
@@ -107,7 +98,7 @@ export class FirmwareUpdateJob extends Emitter {
 
     this._session = session;
     this._image   = image;
-    this._packetSize = options.packetSize ?? FirmwareUpdateLimits.packetSizeUsable;
+    this._packetSize = options.packetSize ?? FirmwareUpdateLimits.packetSize;
     this._requireServiceMenu = options.requireServiceMenu !== false;
 
     this._state = FirmwareUpdateState.idle;
@@ -232,48 +223,30 @@ export class FirmwareUpdateJob extends Emitter {
       this._updateId, this._image.length, this._packetSize
     );
 
-    const deadline = Date.now() + WARM_UP_MAX_WAIT_MS;
+    const reply = await this._session.request(line, {
+      accept: r => (r.kind === ResponseKind.Acknowledge && r.letter === 'W') ||
+                   r.kind === ResponseKind.Failure,
+      acceptFailure: true,
+      timeoutMs: OPEN_TIMEOUT_MS,
+    });
 
-    for (;;) {
-      const reply = await this._session.request(line, {
-        accept: r => (r.kind === ResponseKind.Acknowledge && r.letter === 'W') ||
-                     r.kind === ResponseKind.Failure,
-        acceptFailure: true,
-        timeoutMs: OPEN_TIMEOUT_MS,
-      });
-
-      if (reply.kind === ResponseKind.Acknowledge) {
-        this._log('Update session open.');
-        return;
-      }
-
-      // F 51: the request was early, not wrong. Send the identical command
-      // again after a short wait. This is the only retry in the whole class.
-      if (reply.code === ResultCode.updateBusy) {
-        if (Date.now() > deadline) {
-          throw this._fail(
-            'The device is still preparing its update storage after ' +
-            `${WARM_UP_MAX_WAIT_MS / 1000} seconds. Restart it and try again.`
-          );
-        }
-        this._log('Device not ready yet (F 51) — asking again shortly.');
-        await pause(WARM_UP_RETRY_MS);
-        continue;
-      }
-
-      // F 50 from `w`: restart, do not retry. See note 3 at the top.
-      if (reply.code === ResultCode.updateFailed) {
-        throw new BpPlusError(ResultCode.updateFailed, {
-          message:
-            'The device could not open its update storage. This is almost always ' +
-            'an earlier transfer still holding it, and nothing releases that before ' +
-            'the next boot. Restart the BP+, return it to the Service Menu, and send ' +
-            'the same update again. Do not retry without restarting.',
-        });
-      }
-
-      throw new BpPlusError(reply.code, { command: line });
+    if (reply.kind === ResponseKind.Acknowledge) {
+      this._log('Update session open.');
+      return;
     }
+
+    // F 50 from `w` means restart, not retry. See note 2 at the top.
+    if (reply.code === ResultCode.updateFailed) {
+      throw new BpPlusError(ResultCode.updateFailed, {
+        message:
+          'The device could not open its update storage. This is almost always ' +
+          'an earlier transfer still holding it, and nothing releases that before ' +
+          'the next boot. Restart the BP+, return it to the Service Menu, and send ' +
+          'the same update again. Do not retry without restarting.',
+      });
+    }
+
+    throw new BpPlusError(reply.code, { command: line });
   }
 
   /**
@@ -496,8 +469,4 @@ export function toBase64(bytes) {
     binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk));
   }
   return btoa(binary);
-}
-
-function pause(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
 }

@@ -268,7 +268,7 @@ export function recallMeasurement(index = 0) {
  * Open a firmware-update session.
  * @param {number} updateId    netMF CRC-32 of the whole image; must be non-zero
  * @param {number} imageBytes  image size, at most 4 MB
- * @param {number} packetSize  128..512; only 512 actually opens a session
+ * @param {number} packetSize  must be FirmwareUpdateLimits.packetSize
  */
 export function firmwareUpdateStart(updateId, imageBytes, packetSize) {
   if (!Number.isInteger(updateId) || updateId === 0) {
@@ -278,10 +278,8 @@ export function firmwareUpdateStart(updateId, imageBytes, packetSize) {
       imageBytes > FirmwareUpdateLimits.imageBytesMax) {
     throw reject('The firmware image must be between 1 byte and 4 MB.');
   }
-  if (!Number.isInteger(packetSize) ||
-      packetSize < FirmwareUpdateLimits.packetSizeMin ||
-      packetSize > FirmwareUpdateLimits.packetSizeMax) {
-    throw reject('The packet size must be between 128 and 512 bytes.');
+  if (packetSize !== FirmwareUpdateLimits.packetSize) {
+    throw reject(`The packet size must be ${FirmwareUpdateLimits.packetSize} bytes.`);
   }
   return `w ${updateId >>> 0},${imageBytes},${packetSize}`;
 }

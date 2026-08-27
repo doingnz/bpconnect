@@ -117,7 +117,6 @@ export const ResultCode = Object.freeze({
   sdCardInvalid:           28,
   sdCardLocked:            29,
   updateFailed:            50,
-  updateBusy:              51,
   success:                 99,
 });
 
@@ -156,7 +155,6 @@ const RESULT_CODE_TEXT = Object.freeze({
   28: 'The SD card is not valid.',
   29: 'The SD card is locked.',
   50: 'The firmware update could not continue and the session has ended.',
-  51: 'The device is not ready for the firmware update yet — send the same request again shortly.',
   99: 'Success.',
 });
 
@@ -263,10 +261,7 @@ export const DetailLevel = Object.freeze({
 
 /** Firmware-update limits, as enforced by the device. */
 export const FirmwareUpdateLimits = Object.freeze({
-  packetSizeMin: 128,
-  packetSizeMax: 512,
-  // 128 and 256 are accepted by `w` and then open no session, so 512 is the
-  // only size that works.
-  packetSizeUsable: 512,
+  /** The only packet size the device accepts. */
+  packetSize: 512,
   imageBytesMax: 4 * 1024 * 1024,
 });

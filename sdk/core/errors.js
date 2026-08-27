@@ -34,8 +34,7 @@ export class BpPlusError extends Error {
 
   /** True when the device is temporarily unable rather than refusing outright. */
   get isTransient() {
-    return this.code === ResultCode.updateBusy
-        || this.code === ResultCode.deviceIsBusy;
+    return this.code === ResultCode.deviceIsBusy;
   }
 
   toString() {

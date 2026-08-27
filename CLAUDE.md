@@ -145,4 +145,3 @@ cause bugs that look like something else:
 - The Gevity upload block and its hard-coded credentials were removed. Those credentials remain in the git history and should be rotated.
 - Two service actions are off by default, both under Settings: **Device provisioning** (writing a setting to the BP+, which always restarts it) and the **Firmware update tab**.
 - Only ONE firmware transfer succeeds per device boot. `F 50` from `w` means restart-then-retry, never retry — repeated attempts without a restart can hang the device outright.
-- `docs/SDK.md`, the customer integration guide, is still to be written (phase 3).

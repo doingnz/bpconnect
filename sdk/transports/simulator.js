@@ -26,8 +26,7 @@
  *
  * It also answers the firmware-update commands `w`, `k` and `v` — with W and
  * K <index>, which is what the device sends, rather than the F 99 the
- * specification claims. `{ warmUpRefusals: n }` makes the first n `w` commands
- * answer F 51, the one response that invites a retry.
+ * specification claims.
  * `{ orphanOnCancel: true }` makes a cancel during a transfer produce the
  * orphaned K and the extra F 50 that a real device sends when a packet was
  * already on the wire, or when the operator cancels with the device buttons.
@@ -85,11 +84,6 @@ export class SimulatorTransport extends Transport {
     // An open firmware-update session, or null.
     this._update = null;
 
-    // How many `w` commands answer F 51 before the storage is ready. The real
-    // warm-up runs once, on the first visit to the Service Menu after an
-    // install; a host has to send the identical command again rather than
-    // treating it as a failure.
-    this._warmUpRemaining = options.warmUpRefusals ?? 0;
 
     // Reproduce a cancel that races a packet: an orphaned K and an extra F 50.
     this._orphanOnCancel = options.orphanOnCancel === true;
@@ -368,15 +362,8 @@ export class SimulatorTransport extends Transport {
     }
 
     if (letter === 'w') {
-      // F 51 while the storage warm-up runs: the request is early, not wrong.
-      if (this._warmUpRemaining > 0) {
-        this._warmUpRemaining--;
-        this._send(`F ${pad(ResultCode.updateBusy)}`);
-        return;
-      }
-
       const [id, length, packetSize] = message.split(',').map(v => Number(v.trim()));
-      if (!id || !(length > 0) || !(packetSize >= 128 && packetSize <= 512)) {
+      if (!id || !(length > 0) || packetSize !== 512) {
         this._send(`F ${pad(ResultCode.updateFailed)}`);
         return;
       }
