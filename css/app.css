@@ -119,3 +119,276 @@ Make navbar transparent
     color: #aaa;
     font-size: 13px;
 }
+
+/* ── Status line under the readings (tab 1) ────────────────────────────────── */
+.status-line {
+    font-size: 15px;
+    font-weight: 600;
+    color: #1565c0;
+    min-height: 20px;
+}
+
+.status-detail {
+    font-size: 12px;
+    color: #888;
+    min-height: 16px;
+    padding: 0 16px 8px;
+}
+
+/* ── Measurement details list (tab 2) ──────────────────────────────────────── */
+.results-info p {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    margin: 0;
+    padding: 5px 0;
+    border-bottom: 1px solid #f0f0f0;
+    font-size: 13px;
+}
+
+.results-info p:last-child { border-bottom: none; }
+.results-info span { color: #888; flex: none; }
+.results-info b {
+    font-weight: 500;
+    text-align: right;
+    word-break: break-all;
+    font-variant-numeric: tabular-nums;
+}
+
+/* ── Settings tab ──────────────────────────────────────────────────────────── */
+.capability-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    margin-bottom: 12px;
+}
+
+.capability-table td {
+    padding: 5px 0;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+.capability-table td:last-child {
+    text-align: right;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+}
+
+.settings-notice {
+    background: #fff8e1;
+    border-left: 3px solid #f9a825;
+    padding: 8px 12px;
+    font-size: 13px;
+    margin-bottom: 12px;
+}
+
+.settings-help {
+    font-size: 12px;
+    color: #888;
+    line-height: 1.55;
+}
+
+/* ── Debug / trace pane ────────────────────────────────────────────────────── */
+.debug-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 4px;
+    font-size: 12px;
+}
+
+#debug {
+    max-height: 320px;
+    overflow-y: auto;
+    background: #fbfbfb;
+    border: 1px solid #e0e0e0;
+    border-radius: 4px;
+    padding: 6px 8px;
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 11px;
+    line-height: 1.5;
+    user-select: text;
+    -webkit-user-select: text;
+    cursor: text;
+}
+
+.log-row { white-space: pre-wrap; word-break: break-word; }
+.log-tx    { color: #00566f; }
+.log-rx    { color: #1b5e20; }
+.log-info  { color: #444; }
+.log-warn  { color: #8d6e00; }
+.log-error { color: #b71c1c; }
+
+/* A discarded duplicate F nn, or a line nothing was waiting for. Dimmed
+   rather than hidden: it is expected, and seeing it explains the gap. */
+.log-note-duplicate,
+.log-note-unsolicited { opacity: 0.55; font-style: italic; }
+
+/* ── Measurement setup form (tab 1) ────────────────────────────────────────── */
+.setup-card {
+    margin: 8px 16px 24px;
+    padding: 12px 14px;
+    border: 1px solid #e4e4e4;
+    border-radius: 6px;
+    background: #fcfcfc;
+}
+
+.setup-field {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 7px 0;
+}
+
+.setup-label {
+    flex: 0 0 42%;
+    font-size: 13px;
+    color: #666;
+}
+
+.setup-field select,
+.setup-field input {
+    flex: 1;
+    min-width: 0;
+    font-size: 15px;
+    padding: 6px 4px;
+    border: none;
+    border-bottom: 1px solid #ddd;
+    background: transparent;
+    color: #111;
+    border-radius: 0;
+}
+
+.setup-field select:focus,
+.setup-field input:focus {
+    outline: none;
+    border-bottom-color: #1565c0;
+}
+
+.setup-field select:disabled,
+.setup-field input:disabled {
+    color: #aaa;
+    border-bottom-style: dotted;
+}
+
+.setup-field input::placeholder { color: #bbb; }
+
+.setup-group-title {
+    margin: 14px 0 4px;
+    padding-top: 12px;
+    border-top: 1px solid #eee;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #999;
+}
+
+.setup-help {
+    margin: 4px 0 0;
+    font-size: 11.5px;
+    line-height: 1.5;
+    color: #999;
+}
+
+/* ── Inline notices — never block, always explain ──────────────────────────── */
+.inline-notice {
+    margin: 8px 0 4px;
+    padding: 8px 10px;
+    border-left: 3px solid #bbb;
+    border-radius: 0 3px 3px 0;
+    background: #f4f4f4;
+    font-size: 12.5px;
+    line-height: 1.5;
+    color: #444;
+}
+
+.inline-notice b { font-weight: 600; }
+
+.inline-notice-ok {
+    border-left-color: #2e7d32;
+    background: #edf5ed;
+    color: #2e5c31;
+}
+
+.inline-notice-warn {
+    border-left-color: #f9a825;
+    background: #fff8e1;
+    color: #6d5200;
+}
+
+.inline-notice-error {
+    border-left-color: #c62828;
+    background: #fdecea;
+    color: #8c1d18;
+}
+
+/* ── Firmware update tab ───────────────────────────────────────────────────── */
+.fw-safety {
+    padding: 10px 12px;
+    margin-bottom: 16px;
+    border-left: 3px solid #2e7d32;
+    background: #edf5ed;
+    border-radius: 0 3px 3px 0;
+    font-size: 12.5px;
+    line-height: 1.55;
+    color: #2e5c31;
+}
+
+.fw-bar {
+    height: 8px;
+    background: #e8e8e8;
+    border-radius: 4px;
+    overflow: hidden;
+    margin: 4px 0 6px;
+}
+
+.fw-bar-fill {
+    height: 100%;
+    width: 0;
+    background: #1565c0;
+    transition: width 0.2s linear;
+}
+
+.fw-progress-text {
+    font-size: 12px;
+    color: #666;
+    font-variant-numeric: tabular-nums;
+    margin-bottom: 12px;
+}
+
+.fw-buttons {
+    display: flex;
+    gap: 10px;
+    margin: 12px 0;
+}
+
+.fw-buttons .button { flex: 1; }
+
+.fw-log {
+    max-height: 220px;
+    overflow-y: auto;
+    background: #fbfbfb;
+    border: 1px solid #e0e0e0;
+    border-radius: 4px;
+    padding: 6px 8px;
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 11px;
+    line-height: 1.55;
+    color: #444;
+    white-space: pre-wrap;
+    word-break: break-word;
+    user-select: text;
+    -webkit-user-select: text;
+}
+
+/* The file input is a browser control; give it room rather than restyling it. */
+#fw-browse { border: none; font-size: 13px; }
+
+/* Framework7 does not grey a filled button out when it is disabled, so a
+   control that cannot be pressed still looks as though it can. */
+.button:disabled,
+.button.disabled {
+    opacity: 0.4;
+    pointer-events: none;
+}

@@ -1,14 +1,14 @@
 <!DOCTYPE html>
 <!-- LOCAL DEVELOPMENT COPY — see CLAUDE.md and ApplicationDesign.md -->
 <!--
-  To run locally:
+  A LOCAL SERVER IS REQUIRED. The application is built from ES modules, which
+  browsers refuse to load over file://, and Web Serial, WebUSB and Web
+  Bluetooth all need a secure context as well.
+
     Python : python -m http.server 8080  → http://localhost:8080
     Node   : npx serve .                 → http://localhost:3000
 
-  Web Serial and Web Bluetooth require a secure context (https:// or localhost).
-  Opening as file:// will work for Simulator mode only.
-
-  Connection defaults to "Simulator" — no hardware needed for basic UI testing.
+  Connection defaults to "Simulator" — no hardware needed to try the UI.
 -->
 <html>
 <head>
@@ -145,6 +145,9 @@
           <a href="#tab3" class="tab-link">
             <i class="fas fa-chart-line fa-lg"></i>
           </a>
+          <a href="#tab5" class="tab-link" id="tab-link-firmware" style="display:none;">
+            <i class="fas fa-microchip fa-lg"></i>
+          </a>
           <a href="#tab4" class="tab-link">
             <img height="28" width="28" src="assets/uscom-logo.svg">
           </a>
@@ -205,48 +208,75 @@
                     </div>
                     <div class="text-align-right">&nbsp;</div>
                   </div>
-                  <div id="status-measure" class="text-align-center">&nbsp;</div>
+                  <div id="status-measure" class="text-align-center status-line">&nbsp;</div>
+                  <div id="status-detail" class="text-align-center status-detail"></div>
 
-                  <!-- Patient lookup / upload (shown when ?uploadGevity=1 in URL) -->
-                  <div id="uploadGevity" style="display:none;">
-                    <div class="display-flex justify-content-center">
-                      <div style="width: 350px">
-                        <div class="list no-hairlines">
-                          <ul>
-                            <li class="item-content item-input">
-                              <div class="item-inner">
-                                <div class="item-input-wrap">
-                                  <input id="person-id" type="text" placeholder="Id or Email" value="info@healthsystemslimited.com">
-                                  <span class="input-clear-button"></span>
-                                </div>
-                              </div>
-                              <div class="item-media">
-                                <button id="lookup" class="button"><i class="fas fa-search"></i></button>
-                              </div>
-                            </li>
-                            <li class="item-content item-input">
-                              <div class="item-inner">
-                                <div class="item-title item-label">Id</div>
-                                <p class="no-margin-top no-margin-bottom" id="patient-id">-</p>
-                              </div>
-                            </li>
-                            <li class="item-content item-input">
-                              <div class="item-inner">
-                                <div class="item-title item-label">First Name</div>
-                                <p class="no-margin-top no-margin-bottom" id="patient-first">-</p>
-                              </div>
-                            </li>
-                            <li class="item-content item-input">
-                              <div class="item-inner">
-                                <div class="item-title item-label">Last Name</div>
-                                <p class="no-margin-top no-margin-bottom" id="patient-last">-</p>
-                              </div>
-                            </li>
-                          </ul>
-                        </div>
-                        <button id="upload" class="button button-fill disabled">Upload</button>
-                      </div>
+                  <!-- ── Measurement setup ── see app/measure-setup.js ────────── -->
+                  <div class="setup-card">
+
+                    <div class="setup-field">
+                      <label class="setup-label" for="measure-mode">Measurement mode</label>
+                      <select id="measure-mode"></select>
                     </div>
+
+                    <!-- Filled by measure-setup.js once the device has answered `f`. -->
+                    <div id="measure-mode-warning" class="inline-notice" style="display:none;"></div>
+
+                    <div class="setup-field">
+                      <label class="setup-label" for="patient-id">Patient ID</label>
+                      <input id="patient-id" type="text" autocomplete="off"
+                             spellcheck="false" placeholder="optional"
+                             inputmode="text" maxlength="64">
+                    </div>
+                    <p class="setup-help">
+                      Letters, digits and hyphens. Stored in the result exactly as
+                      typed — the device does not check it.
+                    </p>
+
+                    <!-- AOBP protocol. Shown when the page is set to BP+ AOBP;
+                         usable only when the device reports it is in that mode. -->
+                    <div id="aobp-group" style="display:none;">
+                      <div class="setup-group-title">AOBP protocol</div>
+
+                      <div id="aobp-notice" class="inline-notice inline-notice-warn" style="display:none;"></div>
+
+                      <div class="setup-field">
+                        <label class="setup-label" for="aobp-body-position">Body position</label>
+                        <select id="aobp-body-position">
+                          <option value="">—</option>
+                          <option value="seated">Seated</option>
+                          <option value="standing">Standing</option>
+                        </select>
+                      </div>
+
+                      <div class="setup-field">
+                        <label class="setup-label" for="aobp-repeats">Measurements</label>
+                        <input id="aobp-repeats" type="number" min="1" max="5"
+                               inputmode="numeric" placeholder="device default">
+                      </div>
+
+                      <div class="setup-field">
+                        <label class="setup-label" for="aobp-initial-delay">Initial rest (s)</label>
+                        <input id="aobp-initial-delay" type="number" min="0" max="900"
+                               inputmode="numeric" placeholder="device default">
+                      </div>
+
+                      <div class="setup-field">
+                        <label class="setup-label" for="aobp-repeat-delay">Between measurements (s)</label>
+                        <input id="aobp-repeat-delay" type="number" min="0" max="180"
+                               inputmode="numeric" placeholder="device default">
+                      </div>
+
+                      <div id="aobp-error" class="inline-notice inline-notice-error" style="display:none;"></div>
+
+                      <p class="setup-help">
+                        Leave a box empty to use the device's own value: seated is
+                        3 measurements after 5 minutes, standing is 2 after 1 minute,
+                        30 seconds apart. The device rejects a value outside its
+                        range rather than adjusting it.
+                      </p>
+                    </div>
+
                   </div>
 
                 </div>
@@ -260,7 +290,7 @@
                       <div class="data-table-title">Measurement Results</div>
                     </div>
                     <div class="card-content">
-                      <table>
+                      <table id="results-table">
                         <thead>
                           <tr>
                             <th class="label-cell">Measure</th>
@@ -270,6 +300,36 @@
                         </thead>
                         <tbody></tbody>
                       </table>
+                    </div>
+                  </div>
+
+                  <!-- Individual BP readings. Shown only for AOBP and BP+ [3],
+                       where the headline numbers above are a mean. -->
+                  <div class="data-table card" id="readings-section" style="display:none;">
+                    <div class="card-header">
+                      <div class="data-table-title">Individual readings</div>
+                    </div>
+                    <div class="card-content">
+                      <table>
+                        <thead>
+                          <tr>
+                            <th class="label-cell">Reading</th>
+                            <th class="numeric-cell">SYS/DIA</th>
+                            <th class="numeric-cell">MAP</th>
+                            <th class="numeric-cell">PR</th>
+                            <th class="numeric-cell">Waited</th>
+                          </tr>
+                        </thead>
+                        <tbody></tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  <div class="data-table card">
+                    <div class="card-header">
+                      <div class="data-table-title">Measurement details</div>
+                    </div>
+                    <div class="card-content">
                       <div class="results-info"></div>
                     </div>
                   </div>
@@ -282,7 +342,7 @@
 
                   <!-- Shown before first measurement -->
                   <div id="waveform-placeholder">
-                    Run a measurement to see waveform charts.
+                    Run a measurement to see the pulse waves.
                   </div>
 
                   <!-- Chart stack — hidden until waveformDraw() is called -->
@@ -340,10 +400,17 @@
                   <div class="block">
 
                     <p>
-                      Set the connection type — a page refresh is required after changing.<br>
-                      Serial API available: <strong id="serial-status-text">checking…</strong><br>
-                      Bluetooth API available: <strong id="bt-status-text">checking…</strong>
+                      Choose how this page reaches the BP+. Changing it takes effect
+                      after a reload.
                     </p>
+                    <table class="capability-table">
+                      <tbody>
+                        <tr><td>Secure context</td><td id="secure-status-text">checking…</td></tr>
+                        <tr><td>Web Serial</td><td id="serial-status-text">checking…</td></tr>
+                        <tr><td>Web Bluetooth</td><td id="bt-status-text">checking…</td></tr>
+                        <tr><td>WebUSB</td><td id="usb-status-text">checking…</td></tr>
+                      </tbody>
+                    </table>
 
                     <div class="list no-hairlines-md">
                       <ul>
@@ -358,7 +425,7 @@
                                 <option value="simulator">Simulator</option>
                                 <option value="bluetooth">Bluetooth</option>
                                 <option value="serial">Serial</option>
-                                <option value="webserial">Serial Android</option>
+                                <option value="webserial">USB Serial (Android)</option>
                               </select>
                             </div>
                           </div>
@@ -393,14 +460,63 @@
                         </li>
                       </ul>
                     </div>
-                    <p style="font-size:12px; color:#888;">
-                      <strong>Flow Control:</strong> applies to the uConnect S2B5232I adapter only (sets config byte 3: 0x02=RTS/CTS, 0x00=none).
-                      For <em>Hardware</em> to work the BP+ device must also have flow control enabled
-                      (Menu → Setup → Hardware). Recommended on Android to prevent XML data loss.
-                      The NUS Bridge and other adapters manage flow control in firmware — this setting has no effect on them.<br>
-                      <strong>Serial Tracing</strong> logs every TX/RX byte below (blue=TX, green=RX, brown=CFG).
-                      CFG trace shows actual config bytes sent — verify byte 3 is 0x02 (HW FC) or 0x00 (none).<br>
-                      A page refresh is required after changing Connection or Flow Control.
+                    <div id="settings-reload-notice" class="settings-notice" style="display:none;">
+                      Reload the page for this change to take effect.
+                    </div>
+
+                    <div class="setup-field">
+                      <label class="setup-label" for="bpfirmware">Firmware update tab</label>
+                      <select id="bpfirmware">
+                        <option value="off">Off</option>
+                        <option value="on">Show</option>
+                      </select>
+                    </div>
+
+                    <div class="setup-field">
+                      <label class="setup-label" for="bpprovisioning">Device provisioning</label>
+                      <select id="bpprovisioning">
+                        <option value="off">Off</option>
+                        <option value="on">Show</option>
+                      </select>
+                    </div>
+
+                    <!-- Writing a setting to the BP+ ALWAYS reboots it, even when
+                         the value already matches. Kept off the measurement screen
+                         and behind the switch above. See app/tab-settings.js. -->
+                    <div id="provisioning-panel" style="display:none;">
+                      <div class="setup-group-title">Write settings to the device</div>
+
+                      <div id="provisioning-device" class="inline-notice" style="display:none;"></div>
+
+                      <div class="setup-field">
+                        <label class="setup-label" for="provision-measure-mode">Measurement mode</label>
+                        <select id="provision-measure-mode"></select>
+                      </div>
+
+                      <button id="provision-apply" class="button button-fill" type="button" disabled>
+                        Apply and restart the BP+
+                      </button>
+
+                      <p class="setup-help">
+                        An accepted write always restarts the device — once, and
+                        even when the value already matches. The restart is the
+                        acknowledgement: there is no separate success code. A
+                        rejected write changes nothing and does not say which
+                        setting was at fault.
+                      </p>
+                    </div>
+
+                    <p class="settings-help">
+                      <strong>Flow control</strong> applies to the uConnect S2B5232I
+                      Bluetooth adapter and to a Web Serial port. For hardware flow
+                      control to work the BP+ must have it enabled too
+                      (Menu → Setup → Hardware). Recommended on Android, where the
+                      link cannot keep up with 115200 baud during an XML transfer and
+                      data is otherwise lost. Other Bluetooth bridges manage flow
+                      control in their own firmware and ignore this setting.<br>
+                      <strong>Serial tracing</strong> logs every line sent and received
+                      in the pane below. It costs nothing when off and is the first
+                      thing to turn on when a device is not behaving.
                     </p>
 
                     <p>
@@ -408,12 +524,68 @@
                     </p>
                     <p>Version <span id="app-version">…</span></p>
 
-                    <!-- Debug output area — populated by debuglog() / tracelog() -->
-                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
-                      <strong style="font-size:12px;">Debug / Trace</strong>
-                      <button class="button button-small" onclick="document.getElementById('debug').innerHTML=''">Clear</button>
+                    <!-- Fed by device.on('log') and device.on('warning') — see app/ui-log.js -->
+                    <div class="debug-header">
+                      <strong>Debug / Trace</strong>
+                      <button class="button button-small" id="debug-clear" type="button">Clear</button>
                     </div>
-                    <div id="debug" style="max-height:300px; overflow-y:auto; background:#f8f8f8; padding:4px; border:1px solid #ddd; border-radius:4px; user-select:text; -webkit-user-select:text; cursor:text;"><p>Debug output appears here</p></div>
+                    <div id="debug"></div>
+
+                  </div>
+                </div>
+              </div>
+
+
+              <!-- ── Tab 5: Firmware update ── see app/tab-firmware.js ──────── -->
+              <div class="tab" id="tab5">
+                <div class="page-content bg-color-white">
+                  <div class="block">
+
+                    <div class="fw-safety">
+                      <b>Interrupting an update is safe.</b> The new image is written
+                      to a separate area of flash. The BP+ keeps running its current
+                      firmware until the very end, so it can be cancelled, restarted
+                      or unplugged at any point before it reboots. An interrupted
+                      transfer costs the time spent and nothing else.
+                    </div>
+
+                    <div class="setup-group-title">Device</div>
+                    <div id="fw-device" class="inline-notice">Connect to a BP+.</div>
+
+                    <div class="setup-group-title">Firmware file</div>
+                    <div class="setup-field">
+                      <label class="setup-label" for="fw-browse">Choose a file</label>
+                      <input id="fw-browse" type="file" accept=".nmf">
+                    </div>
+                    <div class="setup-field">
+                      <label class="setup-label" for="fw-filename">File</label>
+                      <input id="fw-filename" type="text" placeholder="no file chosen">
+                    </div>
+                    <p class="setup-help">
+                      Browsers do not reveal where a file came from, so only its name
+                      is shown. Editing this box renames the entry in the log — it
+                      does not choose a different file.
+                    </p>
+
+                    <div id="fw-summary" class="inline-notice" style="display:none;"></div>
+                    <div id="fw-transport-warning" class="inline-notice inline-notice-warn" style="display:none;"></div>
+
+                    <div class="setup-group-title">Transfer</div>
+
+                    <div id="fw-progress-wrap" style="display:none;">
+                      <div class="fw-bar"><div id="fw-bar-fill" class="fw-bar-fill"></div></div>
+                      <div id="fw-progress-text" class="fw-progress-text"></div>
+                    </div>
+
+                    <div class="fw-buttons">
+                      <button id="fw-apply" class="button button-fill" type="button" disabled>Apply</button>
+                      <button id="fw-cancel" class="button" type="button" disabled>Cancel</button>
+                    </div>
+
+                    <div id="fw-outcome" class="inline-notice" style="display:none;"></div>
+
+                    <div class="setup-group-title">Progress log</div>
+                    <div id="fw-log" class="fw-log"></div>
 
                   </div>
                 </div>
@@ -428,55 +600,37 @@
     </div><!-- .views -->
   </div><!-- #app -->
 
-  <!-- ── Frameworks ────────────────────────────────────────────────────────── -->
-  <script type="text/javascript" src="framework7/js/framework7.bundle.min.js"></script>
-  <!-- Chart.js must load before waveform.js which registers plugins against it -->
-  <script type="text/javascript" src="js/vendor/chart.umd.min.js"></script>
+  <!-- ── Frameworks (classic scripts — both ship as globals) ────────────── -->
+  <script src="framework7/js/framework7.bundle.min.js"></script>
+  <!-- Chart.js must be defined before app/tab-waveform.js registers plugins
+       against it. Classic scripts run before deferred modules, so it is. -->
+  <script src="js/vendor/chart.umd.min.js"></script>
 
-  <!-- ── Application scripts (load order matters) ──────────────────────────── -->
-  <script type="text/javascript" src="js/utils.js"></script>
-  <script type="text/javascript" src="js/crc8.js"></script>
-  <script type="text/javascript" src="js/emitter.js"></script>
-  <script type="text/javascript" src="js/bpplus-ble.js"></script>
-  <script type="text/javascript" src="js/bpplus-sim.js"></script>
-  <script type="text/javascript" src="js/bpplus-serial.js"></script>
-  <script type="text/javascript" src="js/bpplus-webserial.js"></script>
-  <script type="text/javascript" src="js/bpplus.js"></script>
-  <script type="text/javascript" src="js/waveform.js"></script>
-  <script type="text/javascript" src="js/app.js"></script>
+  <!-- ── The application ──────────────────────────────────────── -->
+  <!--
+    ES modules. There is no build step and no load order to maintain — each
+    module names what it needs. app/ is a consumer of sdk/; nothing in sdk/
+    touches the DOM.
 
-  <!-- ── Status bar population + misc page setup ───────────────────────────── -->
+    Modules do not load over file://. Serve the folder (see the comment at the
+    top of this file).
+  -->
+  <script type="module" src="app/app.js"></script>
+
+  <!-- ── First-run defaults, before the app reads them ─────────────────── -->
   <script>
     (function () {
-      // ── Populate status bar from localStorage (runs before any async work) ──
-      var connLabels = {
-        simulator: 'Simulator', bluetooth: 'Bluetooth',
-        'bluetooth-nus': 'Bluetooth',
-        serial: 'Serial',       webserial: 'USB Serial'
-      };
-      var conn = localStorage.getItem('bpconnection') || 'simulator';
-      var fc   = localStorage.getItem('bpflowcontrol');   // null / 'hardware' / 'none'
-      var tr   = localStorage.getItem('bptrace');          // null / 'on' / 'off'
-
-      document.getElementById('banner-connection').textContent =
-        connLabels[conn] || conn;
-      document.getElementById('banner-fc').textContent =
-        (fc === 'none') ? 'No FC' : 'HW FC';
-      document.getElementById('banner-trace').textContent =
-        (tr === 'on') ? 'Trace ●' : 'Trace ○';
-
-      // ── API availability labels inside the settings tab ─────────────────────
-      var serialOk = 'serial'    in navigator;
-      var btOk     = 'bluetooth' in navigator;
-      document.getElementById('serial-status-text').textContent = serialOk ? 'yes' : 'no';
-      document.getElementById('bt-status-text').textContent     = btOk     ? 'yes' : 'no';
-
-      // ── Default to simulator on first visit ──────────────────────────────────
-      if (!localStorage.getItem('bpconnection')) {
-        localStorage.setItem('bpconnection', 'simulator');
+      // Simulator on a first visit, so the page does something without hardware.
+      try {
+        if (!localStorage.getItem('bpconnection')) {
+          localStorage.setItem('bpconnection', 'simulator');
+        }
+      } catch (e) {
+        // Storage disabled. The SDK defaults to the simulator anyway.
       }
 
-      // ── Prevent Framework7 tab-swipe from blocking text selection in #debug ──
+      // Framework7's swipeable tabs otherwise steal the gesture and make the
+      // trace pane impossible to select text in.
       var debugEl = document.getElementById('debug');
       if (debugEl) {
         ['mousedown', 'pointerdown', 'touchstart'].forEach(function (type) {

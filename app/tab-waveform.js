@@ -1,13 +1,13 @@
 /**
- * Waveform charts for BP+ Connect.
+ * Tab 3 — pulse-wave charts.
  *
- * Renders five Chart.js charts in Tab 3 from the BP+ XML result document.
- * Two canvas-drawing plugins are registered globally:
- *   bpBeatMarker  — dashed vertical lines at beat-start sample indexes
- *   bpFeatureDots — filled circles at feature-point sample indexes
+ * Five Chart.js line charts drawn from a BpPlusMeasurement. Chart.js is a
+ * global (loaded as a classic script by index.html) because it ships as UMD
+ * and this project has no bundler.
  *
- * Public API:
- *   waveformDraw(xmlDoc)  — call after each successful XML parse
+ * Waveform arrays are read through the measurement's scoped accessor rather
+ * than from the XML document directly, so an AOBP result cannot pick up a
+ * per-reading element by mistake.
  */
 
 // ── Plugin: beat-start vertical lines ────────────────────────────────────────
@@ -70,19 +70,6 @@ const _wfCharts = {};
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-/** Extract a comma-separated float array from the XML document. */
-function _xmlFloats(xmlDoc, tag) {
-    const el = xmlDoc.getElementsByTagName(tag)[0];
-    if (!el || !el.firstChild) return [];
-    return el.firstChild.nodeValue.split(',').map(Number);
-}
-
-/** Extract a comma-separated integer array from the XML document. */
-function _xmlInts(xmlDoc, tag) {
-    const el = xmlDoc.getElementsByTagName(tag)[0];
-    if (!el || !el.firstChild) return [];
-    return el.firstChild.nodeValue.split(',').map(Number);
-}
 
 /**
  * Create (or recreate) one Chart.js line chart.
@@ -155,41 +142,62 @@ function _renderChart(canvasId, label, color, data, beatIndexes, dotIndexes) {
     });
 }
 
-// ── Public API ────────────────────────────────────────────────────────────────
+// ── Public API ────────────────────────────────────────────────────
 
 /**
- * Parse waveform arrays from the BP+ XML result and render all five charts.
- * Must be called after DOMParser has produced a valid xmlDoc.
- *
- * @param {Document} xmlDoc
+ * Draw all five charts from a measurement.
+ * @param {import('../sdk/index.js').BpPlusMeasurement} measurement
  */
-function waveformDraw(xmlDoc) {
-    // ── Waveform arrays ───────────────────────────────────────────────────────
-    const sBaseLined = _xmlFloats(xmlDoc, 'sBaseLined');
-    const baEstimate = _xmlFloats(xmlDoc, 'baEstimate');
-    const cEstimate  = _xmlFloats(xmlDoc, 'cEstimate');
-    const sAvgPulse  = _xmlFloats(xmlDoc, 'sAveragePulse');
-    const cAvgPulse  = _xmlFloats(xmlDoc, 'cAveragePulse');
-
-    // ── Index arrays ──────────────────────────────────────────────────────────
-    const sPulseStarts = _xmlInts(xmlDoc, 'sPulseStartIndexes');
-    const cPulseStarts = _xmlInts(xmlDoc, 'cPulseStartIndexes');
-    const sAvgPtIdxs   = _xmlInts(xmlDoc, 'sAveragePulsePointsIndexes');
-    const cAvgPtIdxs   = _xmlInts(xmlDoc, 'cAveragePulsePointsIndexes');
-
-    // ── Show charts, hide placeholder ─────────────────────────────────────────
+export function drawWaveforms(measurement) {
     const placeholder = document.getElementById('waveform-placeholder');
     const container   = document.getElementById('waveform-charts');
+
+    const sBaseLined = measurement.array('sBaseLined');
+    if (sBaseLined.length === 0) {
+        // BP-only measurements carry no suprasystolic waveform.
+        if (placeholder) {
+            placeholder.textContent =
+                'This measurement has no pulse-wave data to draw.';
+            placeholder.style.display = '';
+        }
+        if (container) container.style.display = 'none';
+        return;
+    }
+
+    const baEstimate = measurement.array('baEstimate');
+    const cEstimate  = measurement.array('cEstimate');
+    const sAvgPulse  = measurement.array('sAveragePulse');
+    const cAvgPulse  = measurement.array('cAveragePulse');
+
+    const sPulseStarts = measurement.array('sPulseStartIndexes');
+    const cPulseStarts = measurement.array('cPulseStartIndexes');
+    const sAvgPtIdxs   = measurement.array('sAveragePulsePointsIndexes');
+    const cAvgPtIdxs   = measurement.array('cAveragePulsePointsIndexes');
+
     if (placeholder) placeholder.style.display = 'none';
     if (container)   container.style.display   = 'block';
 
-    // ── Render ────────────────────────────────────────────────────────────────
     //   Full waveforms — beat-start markers (dashed red verticals)
-    _renderChart('chart-sBaseLined',    'Suprasystolic Rhythm',      '#1565c0', sBaseLined, sPulseStarts, null);
-    _renderChart('chart-baEstimate',    'Brachial',                  '#2e7d32', baEstimate, sPulseStarts, null);
-    _renderChart('chart-cEstimate',     'Central',                   '#b71c1c', cEstimate,  cPulseStarts, null);
+    _renderChart('chart-sBaseLined', 'Suprasystolic Rhythm', '#1565c0', sBaseLined, sPulseStarts, null);
+    _renderChart('chart-baEstimate', 'Brachial',             '#2e7d32', baEstimate, sPulseStarts, null);
+    _renderChart('chart-cEstimate',  'Central',              '#b71c1c', cEstimate,  cPulseStarts, null);
 
     //   Averaged single pulses — feature dots (filled orange circles)
-    _renderChart('chart-sAveragePulse', 'Brachial Average Pulse',   '#1565c0', sAvgPulse,  null, sAvgPtIdxs);
-    _renderChart('chart-cAveragePulse', 'Central Average Pulse',    '#b71c1c', cAvgPulse,  null, cAvgPtIdxs);
+    _renderChart('chart-sAveragePulse', 'Brachial Average Pulse', '#1565c0', sAvgPulse, null, sAvgPtIdxs);
+    _renderChart('chart-cAveragePulse', 'Central Average Pulse',  '#b71c1c', cAvgPulse, null, cAvgPtIdxs);
+}
+
+/** Destroy every chart and show the placeholder again. */
+export function clearWaveforms() {
+    for (const id of Object.keys(_wfCharts)) {
+        _wfCharts[id].destroy();
+        delete _wfCharts[id];
+    }
+    const placeholder = document.getElementById('waveform-placeholder');
+    const container   = document.getElementById('waveform-charts');
+    if (placeholder) {
+        placeholder.textContent = 'Run a measurement to see the pulse waves.';
+        placeholder.style.display = '';
+    }
+    if (container) container.style.display = 'none';
 }

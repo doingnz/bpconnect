@@ -9,7 +9,7 @@
  */
 
 // ── This line is updated automatically by GitHub Actions on each push: ────────
-const CACHE_VERSION = '6ec67ef';
+const CACHE_VERSION = 'sdk-phase2b';
 // ─────────────────────────────────────────────────────────────────────────────
 
 const CACHE_NAME = 'bpconnect-' + CACHE_VERSION;
@@ -24,22 +24,45 @@ const PRECACHE = [
   './framework7/css/framework7.bundle.min.css',
   './framework7/js/framework7.bundle.min.js',
   './js/vendor/chart.umd.min.js',
-  './js/utils.js',
-  './js/crc8.js',
-  './js/emitter.js',
-  './js/bpplus-ble.js',
-  './js/bpplus-sim.js',
-  './js/bpplus-serial.js',
-  './js/bpplus-webserial.js',
-  './js/bpplus.js',
-  './js/waveform.js',
-  './js/app.js',
+
+  // The SDK. UI-free — see docs/SDK.md.
+  './sdk/index.js',
+  './sdk/constants.js',
+  './sdk/core/emitter.js',
+  './sdk/core/errors.js',
+  './sdk/core/crc8.js',
+  './sdk/core/crc32-netmf.js',
+  './sdk/core/byte-stream.js',
+  './sdk/core/responses.js',
+  './sdk/core/commands.js',
+  './sdk/core/session.js',
+  './sdk/transports/transport.js',
+  './sdk/transports/simulator.js',
+  './sdk/transports/simulator-data.js',
+  './sdk/transports/web-serial.js',
+  './sdk/transports/web-usb-pl2303.js',
+  './sdk/transports/web-bluetooth.js',
+  './sdk/device/bpplus-device.js',
+  './sdk/device/measurement.js',
+  './sdk/device/features.js',
+  './sdk/device/firmware-update.js',
+
+  // The reference application.
+  './app/app.js',
+  './app/settings.js',
+  './app/ui-log.js',
+  './app/measure-setup.js',
+  './app/tab-measure.js',
+  './app/tab-results.js',
+  './app/tab-waveform.js',
+  './app/tab-settings.js',
+  './app/tab-firmware.js',
+
   './assets/uscom-logo.svg',
   './assets/bpplus-logo.svg',
   './assets/button-connect.svg',
   './assets/button-start.svg',
   './assets/button-stop.svg',
-  './assets/graph.png',
   './webfonts/fa-solid-900.woff2',
   './webfonts/fa-regular-400.woff2',
   './webfonts/fa-brands-400.woff2',
