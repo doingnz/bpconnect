@@ -49,7 +49,9 @@ bpconnect/
 │   │   ├── simulator.js           A scripted BP+ — no hardware
 │   │   ├── simulator-data.js      A recorded measurement, verbatim
 │   │   ├── web-serial.js          navigator.serial
-│   │   ├── web-usb-pl2303.js      navigator.usb — a PL2303 adapter, used on Android
+│   │   ├── usb-serial.js          navigator.usb — the adapter, the only cable path on Android
+│   │   ├── usb-serial-drivers.js  chip setup; Prolific PL2303 today, the seam for others
+│   │   ├── detect.js              what this browser can do, and what to use
 │   │   └── web-bluetooth.js       navigator.bluetooth — five bridge profiles
 │   │
 │   └── device/
@@ -142,13 +144,108 @@ this._receive(bytes)   // call as bytes arrive
 |---|---|---|
 | `SimulatorTransport` | none | Scripted device. Default on first visit. |
 | `WebSerialTransport` | `navigator.serial` | Desktop Chrome/Edge/Opera. 8N1, RTS/CTS, 115200. |
-| `WebUsbPl2303Transport` | `navigator.usb` | Android, where Web Serial does not exist. PL2303HX and GT. |
+| `UsbSerialTransport` | `navigator.usb` | The USB-to-serial adapter, opened directly. The only cable path on Android. Chip-specific — see below. |
 | `WebBluetoothTransport` | `navigator.bluetooth` | Five bridge profiles, probed in order. Writes are serialised and paced. |
+
+`WebUsbPl2303Transport` is the former name of `UsbSerialTransport` and is still
+exported as a subclass fixed to the Prolific driver, so existing integrations
+keep working.
+
+#### The USB-to-serial adapter is chip-specific
+
+`UsbSerialTransport` is not a generic serial port. Once the bulk endpoints are
+found, moving bytes is the same for every adapter, but *opening* one is not:
+each vendor invented its own control-transfer protocol for the baud rate and the
+modem lines, and none can be driven by guessing. Prolific happens to accept the
+CDC line-coding requests after its vendor handshake; FTDI implements no CDC at
+all and encodes the baud rate as a divisor in a vendor request; CP210x and CH340
+differ again.
+
+So the transport owns everything generic and a **driver** in
+`sdk/transports/usb-serial-drivers.js` owns the silicon. Only Prolific PL2303 is
+present, because it is the adapter shipped with a BP+ and the only one tested
+against one. Its `filters` also decide what `requestDevice()` offers, so an
+adapter with no driver cannot be chosen even if the rest would have worked —
+which is the intended behaviour, not a limitation to work around.
+
+Adding another chip is a driver object and a registry entry; the shape and the
+`io` handle it is given are documented at the top of that file. The PL2303
+handshake is pinned by a self-test that drives it against a fake `USBDevice` and
+compares the exact control-transfer sequence, so a change that would break a
+real adapter fails on the bench.
+
+#### Choosing a transport
+
+`sdk/transports/detect.js` answers "what can this browser actually do", which
+matters because the gaps are platform-shaped rather than version-shaped:
+
+| | Web Serial | WebUSB | Web Bluetooth |
+|---|---|---|---|
+| Desktop Chrome / Edge | yes | yes | yes |
+| **Android Chrome** | **no** | yes | yes |
+| Safari, Firefox | no | no | no |
+
+`recommendedTransport()` prefers the cable — Web Serial, then the USB adapter,
+then Bluetooth, which needs a separate bridge most sites do not have. The case
+it exists for is a Chrome tablet: on Android there is no Web Serial at all, so
+the same physical cable has to be reached through WebUSB instead. Choosing that
+by hand is a step an operator should not have to know about, and getting it
+wrong looks like a broken cable.
+
+Detection is by **feature first, platform second**. `navigator.serial` being
+absent is the fact that decides it; Android is used only to explain why and to
+order the choices. An Android build that shipped Web Serial would then simply
+use it, with no change here.
 
 `write` resolves only when the bytes have left, as far as the underlying API
 allows. The firmware-update path sends about a thousand packets back to back,
 and a write that resolves early becomes a buffer overrun a long way from its
 cause.
+
+#### Planned: a direct USB transport
+
+A future BP+ is to expose USB directly rather than through a serial bridge —
+faster, and with device arrival and removal the host can see. The firmware and
+its USB API are some way off, but the shape of the drop-in can be settled now,
+and one decision in that API determines how big the change is.
+
+**If the direct USB link carries the same ASCII line protocol, the drop-in is
+one new file.** Nothing above the transport knows how bytes arrive: `Session`
+reassembles lines from arbitrary chunks, `classify()` reads them, and the device
+object is untouched. A `UsbDirectTransport` implementing `_open`, `_close`,
+`_write` and `_receive` is the entire change, plus a `TransportKind` entry and a
+branch in the chooser.
+
+**If it introduces new framing — a binary header, length-prefixed records, a
+command/response envelope — the change reaches into `sdk/core/`,** because the
+line reader and the response classifier both assume CRLF-delimited ASCII. That
+is not a reason to avoid a better wire format, but it is the difference between
+a new file and a second protocol path to maintain alongside the first, and it
+should be a deliberate choice rather than a discovery.
+
+Worth settling while the USB API is still being designed:
+
+- **Framing.** As above. Keeping the ASCII line protocol over bulk endpoints
+  costs nothing at USB speeds and makes every existing host work unchanged.
+- **Arrival and removal.** WebUSB raises `connect` and `disconnect` on
+  `navigator.usb`, which the serial transports have no equivalent of. The
+  `Transport` contract already emits `disconnect` through `_dropped()`, so
+  removal fits today; arrival — reconnecting automatically when the device comes
+  back — is the part with nowhere to go yet, and is worth adding to the contract
+  as an optional `reconnect` capability rather than as a special case.
+- **Throughput.** A firmware image is about 460 kB and currently takes minutes
+  at 115200 baud in 512-byte packets. Over bulk endpoints the packet size and
+  the one-outstanding-command rule become the limit instead of the line rate, so
+  the update protocol is where the speed would actually be felt — and `w`'s
+  `packetSize` is fixed at 512 today by the firmware, not by the link.
+- **What identifies a BP+.** A direct device needs its own VID/PID and interface
+  descriptors. Those become filters in the chooser, in the same place the
+  adapter drivers keep theirs.
+
+Until that firmware exists there is nothing to write against, so nothing here
+is implemented. The point of writing it down is that the transport boundary is
+already the right seam, and the one thing that could spoil it — new framing —
+is a decision being taken elsewhere.
 
 ---
 

@@ -12,10 +12,20 @@ const MAX_ROWS = 600;
 
 let container = null;
 
+// Anything logged before the pane exists. The transport is chosen at module
+// scope — before any DOM is ready — so the reason auto-detect picked what it
+// did would otherwise be written to a container that is still null and lost.
+const pending = [];
+
 export function initLog() {
   container = document.getElementById('debug');
   const clear = document.getElementById('debug-clear');
   if (clear) clear.addEventListener('click', () => clearLog());
+
+  while (pending.length) {
+    const row = pending.shift();
+    emit(row.text, row.kind, row.note);
+  }
 }
 
 export function clearLog() {
@@ -44,7 +54,12 @@ export function trace(entry) {
 }
 
 function emit(text, kind, note) {
-  if (!container) return;
+  if (!container) {
+    // Bounded: a fault that logged in a loop before init must not grow without
+    // limit while nothing can display it.
+    if (pending.length < MAX_ROWS) pending.push({ text, kind, note });
+    return;
+  }
 
   const row = document.createElement('div');
   row.className = `log-row log-${kind}` + (note ? ` log-note-${note}` : '');

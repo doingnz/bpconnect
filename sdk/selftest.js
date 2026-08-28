@@ -20,6 +20,10 @@ import { classify, ResponseKind } from './core/responses.js';
 import * as commands from './core/commands.js';
 import { BpPlusDevice } from './device/bpplus-device.js';
 import { SimulatorTransport } from './transports/simulator.js';
+import { UsbSerialTransport } from './transports/usb-serial.js';
+import { Pl2303Driver, USB_SERIAL_DRIVERS, allUsbSerialFilters }
+  from './transports/usb-serial-drivers.js';
+import { recommendedTransport, TransportKind } from './transports/detect.js';
 import { buildFeatureWrite, repairFeatureXml } from './device/features.js';
 import { eraseSilenceMs, toBase64 } from './device/firmware-update.js';
 import { MeasureMode, ResultCode } from './constants.js';
@@ -201,6 +205,7 @@ export async function run() {
   }
 
   // ── End to end, against the simulator ─────────────────────────────────────
+  await usbSerialAndDetection();
   await endToEnd();
   await aobpEndToEnd();
   await featureWriteEndToEnd();
@@ -497,6 +502,93 @@ async function featureWriteEndToEnd() {
     unchanged.measureMode, MeasureMode.bpPlusAobp);
 
   await device.disconnect();
+}
+
+/**
+ * The USB-to-serial transport and the transport chooser.
+ *
+ * The chip handshake cannot be exercised against real hardware here, so it is
+ * driven against a recording instead: a fake USBDevice that answers everything
+ * and writes down what it was asked. The expected sequence is the PL2303 one
+ * from the Linux kernel driver, which is the only published description of it —
+ * so a change that breaks a real adapter fails here rather than on a tablet.
+ */
+async function usbSerialAndDetection() {
+  // ── The chooser ─────────────────────────────────────────────────────────
+  const desktop = { android: false, mobile: false, secureContext: true,
+                    webSerial: true, webUsb: true, webBluetooth: true };
+  equal('detect: desktop Chrome uses Web Serial',
+    recommendedTransport(desktop).kind, TransportKind.serial);
+
+  // The case this exists for: Chrome on an Android tablet has WebUSB and
+  // Bluetooth but no Web Serial at all.
+  const android = { android: true, mobile: true, secureContext: true,
+                    webSerial: false, webUsb: true, webBluetooth: true };
+  const pick = recommendedTransport(android);
+  equal('detect: Android falls back to the USB-to-serial adapter',
+    pick.kind, TransportKind.usbSerial);
+  check('detect: and says why', /Android has no Web Serial/.test(pick.reason), pick.reason);
+
+  // Feature first, platform second: an Android that shipped Web Serial would
+  // simply use it.
+  equal('detect: Android with Web Serial would use it',
+    recommendedTransport({ ...android, webSerial: true }).kind, TransportKind.serial);
+
+  equal('detect: bluetooth only, when that is all there is',
+    recommendedTransport({ ...android, webUsb: false }).kind, TransportKind.bluetooth);
+
+  const none = recommendedTransport({ android: false, mobile: false,
+    secureContext: false, webSerial: false, webUsb: false, webBluetooth: false });
+  equal('detect: nothing available reports no transport', none.kind, null);
+  check('detect: an insecure context is named as the likely cause',
+    /secure context/.test(none.reason), none.reason);
+
+  // ── The driver registry ─────────────────────────────────────────────────
+  check('usb: the Prolific driver is registered',
+    USB_SERIAL_DRIVERS.pl2303 === Pl2303Driver);
+  check('usb: its filters name Prolific and nothing else',
+    allUsbSerialFilters().every(f => f.vendorId === 0x067B),
+    JSON.stringify(allUsbSerialFilters()));
+
+  // ── The handshake ───────────────────────────────────────────────────────
+  for (const [name, productId, expected] of [
+    ['PL2303HX', 0x2303, [
+      'in 0x8484,0', 'out 0x0404,0', 'in 0x8484,0', 'in 0x8383,0', 'in 0x8484,0',
+      'out 0x0404,1', 'in 0x8484,0', 'in 0x8383,0', 'out 0x0000,1', 'out 0x0001,0',
+      'out 0x0002,68', 'class 0x0020,0 [115200 8N1]', 'class 0x0022,3']],
+    ['PL2303GT', 0x23A3, [
+      'out 0x0008,0', 'out 0x0009,0',
+      'class 0x0020,0 [115200 8N1]', 'class 0x0022,3']],
+  ]) {
+    const log = [];
+    const io = fakeIo(log);
+    await Pl2303Driver.open(io, { baudRate: 115200, device: { productId } });
+    equal(`usb: the ${name} handshake is unchanged`, log.join(' | '), expected.join(' | '));
+  }
+
+  const closeLog = [];
+  await Pl2303Driver.close(fakeIo(closeLog));
+  equal('usb: closing drops DTR and RTS', closeLog.join(''), 'class 0x0022,0');
+}
+
+/** Records the control transfers a driver makes, in a readable form. */
+function fakeIo(log) {
+  const hex = n => '0x' + Number(n).toString(16).padStart(4, '0');
+  const coding = data => {
+    if (!data) return '';
+    const v = new DataView(data);
+    const stop = ['1', '1.5', '2'][v.getUint8(4)] || '?';
+    const parity = ['N', 'O', 'E', 'M', 'S'][v.getUint8(5)] || '?';
+    return ` [${v.getUint32(0, true)} ${v.getUint8(6)}${parity}${stop}]`;
+  };
+  return {
+    vendorIn:  (value, index) => { log.push(`in ${hex(value)},${index}`); return Promise.resolve({}); },
+    vendorOut: (value, index) => { log.push(`out ${hex(value)},${index}`); return Promise.resolve({}); },
+    classIn:   (request, value) => { log.push(`classIn ${hex(request)},${value}`); return Promise.resolve({}); },
+    classOut:  (request, value, data) => {
+      log.push(`class ${hex(request)},${value}${coding(data)}`); return Promise.resolve({});
+    },
+  };
 }
 
 async function endToEnd() {

@@ -15,7 +15,8 @@
 import {
   SimulatorTransport,
   WebSerialTransport,
-  WebUsbPl2303Transport,
+  UsbSerialTransport,
+  recommendedTransport,
   WebBluetoothTransport,
   DeviceState,
   FeatureOption,
@@ -32,7 +33,9 @@ const SUPPORT = {
   [ConnectionType.simulator]: () => SimulatorTransport.isSupported,
   [ConnectionType.bluetooth]: () => WebBluetoothTransport.isSupported,
   [ConnectionType.serial]:    () => WebSerialTransport.isSupported,
-  [ConnectionType.webserial]: () => WebUsbPl2303Transport.isSupported,
+  [ConnectionType.usbSerial]: () => UsbSerialTransport.isSupported,
+  // Auto always resolves to something, even if only the simulator.
+  [ConnectionType.auto]:      () => true,
 };
 
 let device = null;
@@ -290,7 +293,14 @@ async function applyMeasureMode() {
 function reportBrowserSupport() {
   setText('serial-status-text', WebSerialTransport.isSupported ? 'yes' : 'no');
   setText('bt-status-text',     WebBluetoothTransport.isSupported ? 'yes' : 'no');
-  setText('usb-status-text',    WebUsbPl2303Transport.isSupported ? 'yes' : 'no');
+  setText('usb-status-text',    UsbSerialTransport.isSupported ? 'yes' : 'no');
+
+  // What auto-detect would pick here, so the reason is visible before it is
+  // needed rather than only in the log after a failed connection.
+  const pick = recommendedTransport();
+  setText('auto-status-text', pick.kind
+    ? `${CONNECTION_LABELS[pick.kind] || pick.kind}`
+    : 'nothing available');
   setText('secure-status-text',
     typeof isSecureContext === 'boolean' && isSecureContext ? 'yes' : 'no');
 }

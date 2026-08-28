@@ -122,7 +122,7 @@ it is identical whichever you use.
 | Class | Browser API | Use it for |
 |---|---|---|
 | `WebSerialTransport` | `navigator.serial` | A serial cable or USB-serial adapter on desktop |
-| `WebUsbPl2303Transport` | `navigator.usb` | Android, where Web Serial does not exist |
+| `UsbSerialTransport` | `navigator.usb` | The USB-to-serial adapter, opened directly. The only cable path on Android |
 | `WebBluetoothTransport` | `navigator.bluetooth` | A BLE-to-serial bridge |
 | `SimulatorTransport` | none | Development, demos, tests |
 
@@ -134,6 +134,34 @@ connect time:
 if (!WebSerialTransport.isSupported) { /* offer WebUSB or Bluetooth instead */ }
 ```
 
+### Letting the SDK choose
+
+The gaps between these APIs are platform-shaped, not version-shaped — most
+importantly, **Android Chrome has no Web Serial at all**, so on a tablet the
+same USB cable has to be reached through WebUSB instead. `recommendedTransport()`
+works that out for you:
+
+```js
+import { recommendedTransport, TransportKind } from './sdk/index.js';
+
+const { kind, reason, environment } = recommendedTransport();
+// kind: 'serial' | 'usb-serial' | 'bluetooth' | null
+// reason: a sentence you can show
+// environment: { android, mobile, secureContext, webSerial, webUsb, webBluetooth }
+
+const transport =
+  kind === TransportKind.serial    ? new WebSerialTransport() :
+  kind === TransportKind.usbSerial ? new UsbSerialTransport() :
+  kind === TransportKind.bluetooth ? new WebBluetoothTransport() :
+                                     new SimulatorTransport();
+```
+
+It prefers the cable — Web Serial, then the USB adapter, then Bluetooth, which
+needs a separate bridge. `kind` is `null` when the browser has none of them, and
+`reason` then says whether that is the browser (Safari and Firefox implement
+none) or the page not being on HTTPS, which is the usual cause when all three
+disappear at once.
+
 ### Web Serial
 
 ```js
@@ -142,14 +170,29 @@ new WebSerialTransport({ baudRate: 115200, flowControl: 'hardware' })
 
 8 data bits, no parity, 1 stop bit. 115200 is the device default.
 
-### WebUSB (Android)
+### WebUSB — the USB-to-serial adapter
 
 ```js
-new WebUsbPl2303Transport({ baudRate: 115200 })
+new UsbSerialTransport({ baudRate: 115200 })
 ```
 
-Drives a Prolific PL2303 adapter directly, including the chip's vendor-specific
-initialisation. Supports the PL2303/PL2303HX and the newer PL2303GT.
+Opens the adapter directly and does the chip's vendor-specific initialisation
+itself, which is what Web Serial would otherwise have had the operating system
+do. This is the only way to a BP+ on a cable from Android.
+
+**It is chip-specific, not a generic serial port.** Moving bytes is the same for
+every adapter, but opening one is not: each vendor invented its own
+control-transfer protocol for the baud rate and modem lines. The SDK ships one
+driver, **Prolific PL2303** (PL2303HX and the newer PL2303GT) — the adapter
+supplied with the BP+ and the only one tested against one. An FTDI, CP210x or
+CH340 cable will not appear in the chooser, because a driver's filters decide
+what `requestDevice()` offers.
+
+If you need another chip, `sdk/transports/usb-serial-drivers.js` documents the
+driver shape and the registry to add it to; the transport itself does not change.
+
+`WebUsbPl2303Transport` is the former name and still works — it is the same
+class fixed to the Prolific driver.
 
 ### Web Bluetooth
 

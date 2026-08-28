@@ -50,7 +50,26 @@ export {
 export { Transport, TransportState }      from './transports/transport.js';
 export { SimulatorTransport }             from './transports/simulator.js';
 export { WebSerialTransport }             from './transports/web-serial.js';
-export { WebUsbPl2303Transport }          from './transports/web-usb-pl2303.js';
+export {
+  UsbSerialTransport,
+  // The old name for the same class, kept so existing integrations keep working.
+  WebUsbPl2303Transport,
+} from './transports/usb-serial.js';
+
+// The chip drivers, and what adding another involves.
+export {
+  Pl2303Driver,
+  USB_SERIAL_DRIVERS,
+  allUsbSerialFilters,
+} from './transports/usb-serial-drivers.js';
+
+// Which transport this browser can actually use — the Android case in
+// particular, where there is no Web Serial at all.
+export {
+  TransportKind,
+  describeEnvironment,
+  recommendedTransport,
+} from './transports/detect.js';
 export { WebBluetoothTransport, BLE_PROFILES } from './transports/web-bluetooth.js';
 
 // ── Errors ───────────────────────────────────────────────────────────────────

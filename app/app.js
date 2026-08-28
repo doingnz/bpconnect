@@ -19,7 +19,9 @@ import {
   DeviceState,
   SimulatorTransport,
   WebSerialTransport,
-  WebUsbPl2303Transport,
+  UsbSerialTransport,
+  TransportKind,
+  recommendedTransport,
   WebBluetoothTransport,
   AobpDefaults,
 } from '../sdk/index.js';
@@ -70,9 +72,32 @@ app.on('tabShow', tab => {
 /**
  * One transport per connection type. Constructed explicitly, from settings
  * this application owns — the SDK reads no configuration of its own.
+ *
+ * `auto` asks the SDK what this browser can do. It matters most on an Android
+ * tablet, where there is no Web Serial at all and the same USB cable has to be
+ * reached through WebUSB instead — a distinction an operator should not have to
+ * know about.
  */
 function createTransport(type) {
-  switch (type) {
+  let chosen = type;
+
+  if (type === ConnectionType.auto) {
+    const pick = recommendedTransport();
+    log(`Auto-detect: ${pick.reason}`);
+    chosen = {
+      [TransportKind.serial]:    ConnectionType.serial,
+      [TransportKind.usbSerial]: ConnectionType.usbSerial,
+      [TransportKind.bluetooth]: ConnectionType.bluetooth,
+    }[pick.kind] || ConnectionType.simulator;
+
+    if (!pick.kind) {
+      log('No device API is available, so the simulator was selected.', 'error');
+    } else {
+      log(`Auto-detect chose ${CONNECTION_LABELS[chosen]}.`);
+    }
+  }
+
+  switch (chosen) {
     case ConnectionType.bluetooth:
       return new WebBluetoothTransport({
         hardwareFlowControl: settings.hardwareFlowControl,
@@ -82,8 +107,8 @@ function createTransport(type) {
         baudRate: settings.baudRate,
         flowControl: settings.hardwareFlowControl ? 'hardware' : 'none',
       });
-    case ConnectionType.webserial:
-      return new WebUsbPl2303Transport({ baudRate: settings.baudRate });
+    case ConnectionType.usbSerial:
+      return new UsbSerialTransport({ baudRate: settings.baudRate });
     case ConnectionType.simulator:
     default:
       return new SimulatorTransport();

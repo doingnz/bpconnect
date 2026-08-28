@@ -435,6 +435,7 @@
                         <tr><td>Web Serial</td><td id="serial-status-text">checking…</td></tr>
                         <tr><td>Web Bluetooth</td><td id="bt-status-text">checking…</td></tr>
                         <tr><td>WebUSB</td><td id="usb-status-text">checking…</td></tr>
+                        <tr><td>Auto-detect would use</td><td id="auto-status-text">checking…</td></tr>
                       </tbody>
                     </table>
 
@@ -448,10 +449,11 @@
                             <div class="item-title item-label">Connection</div>
                             <div class="item-input-wrap input-dropdown-wrap">
                               <select id="connection">
+                                <option value="auto">Auto-detect</option>
                                 <option value="simulator">Simulator</option>
                                 <option value="bluetooth">Bluetooth</option>
                                 <option value="serial">Serial</option>
-                                <option value="webserial">USB Serial (Android)</option>
+                                <option value="usb-serial">USB Serial (Prolific PL2303)</option>
                               </select>
                             </div>
                           </div>

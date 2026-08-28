@@ -18,17 +18,19 @@ const KEYS = {
 };
 
 export const ConnectionType = Object.freeze({
+  auto:      'auto',        // pick what this browser can do — see sdk/transports/detect.js
   simulator: 'simulator',
   bluetooth: 'bluetooth',
-  serial:    'serial',      // Web Serial
-  webserial: 'webserial',   // WebUSB / PL2303, used on Android
+  serial:    'serial',      // Web Serial: desktop Chrome and Edge
+  usbSerial: 'usb-serial',  // WebUSB + a chip driver: the only cable path on Android
 });
 
 export const CONNECTION_LABELS = Object.freeze({
-  simulator: 'Simulator',
-  bluetooth: 'Bluetooth',
-  serial:    'Serial',
-  webserial: 'USB Serial',
+  auto:         'Auto-detect',
+  simulator:    'Simulator',
+  bluetooth:    'Bluetooth',
+  serial:       'Serial',
+  'usb-serial': 'USB Serial (Prolific PL2303)',
 });
 
 function read(key, fallback) {
@@ -55,7 +57,11 @@ export const settings = {
     // 'bluetooth-nus' is a legacy value; one transport now handles every
     // bridge profile, so it maps onto plain 'bluetooth'.
     const stored = read(KEYS.connection, ConnectionType.simulator);
-    return stored === 'bluetooth-nus' ? ConnectionType.bluetooth : stored;
+    // Two renames since this key was introduced, so a setting stored by an
+    // older build still resolves rather than falling back to the simulator.
+    if (stored === 'bluetooth-nus') return ConnectionType.bluetooth;
+    if (stored === 'webserial')     return ConnectionType.usbSerial;
+    return stored;
   },
   set connection(value) { write(KEYS.connection, value); },
 
