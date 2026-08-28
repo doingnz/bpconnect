@@ -645,8 +645,31 @@ export class SimulatorTransport extends Transport {
    * The individual readings are derived from the averaged ones so that they
    * average back to them, which is what makes a display that claims to show a
    * mean checkable.
+   *
+   * The cuff recording moves with them. A single measurement keeps one
+   * <RawPressureWave> inside a <PressureWaves> container; a multi-reading
+   * protocol records the cuff once per determination, so the wrapper appears
+   * inside each <NibpBloodPressure> and the container is not emitted at all. A
+   * host that only knows one of the two shapes finds nothing on the other.
    */
   _toAobpXml(xml, protocol, stamp) {
+    // Move the recording where a multi-reading result keeps it. The whole
+    // <PressureWaves> container goes with it: the device does not emit one
+    // when the cuff is recorded per determination.
+    const waveStart = xml.indexOf('<RawPressureWave>');
+    const waveEnd   = xml.indexOf('</RawPressureWave>');
+    const wave = waveStart >= 0 && waveEnd > waveStart
+      ? xml.slice(waveStart, waveEnd + '</RawPressureWave>'.length)
+      : '';
+
+    const boxStart = xml.indexOf('<PressureWaves>');
+    const boxEnd   = xml.indexOf('</PressureWaves>');
+    if (boxStart >= 0 && boxEnd > boxStart) {
+      xml = xml.slice(0, boxStart) + xml.slice(boxEnd + '</PressureWaves>'.length);
+    } else if (wave) {
+      xml = xml.replace(wave, '');
+    }
+
     const mean = tag => {
       const match = new RegExp(`<${tag}>(\\d+)</${tag}>`).exec(xml);
       return match ? Number(match[1]) : 0;
@@ -672,6 +695,7 @@ export class SimulatorTransport extends Transport {
         <AobpRequestedDelay>${index === 0 ? protocol.initialDelaySeconds : protocol.repeatDelaySeconds}</AobpRequestedDelay>
         <AobpDelay>${index === 0 ? protocol.initialDelaySeconds : protocol.repeatDelaySeconds}</AobpDelay>
         <Alert>Excellent Signal</Alert>
+        ${wave}
       </NibpBloodPressure>`).join('');
 
     const ids = offsets.map((_, i) => `aobp${i + 1}`).join(',');

@@ -393,6 +393,17 @@ async function aobpEndToEnd() {
     aobp: { bodyPosition: 'seated', repeats: 3, initialDelaySeconds: 10, repeatDelaySeconds: 30 },
   });
 
+  // The same recording, in the other shape: one per determination, inside each
+  // <NibpBloodPressure> and absent from the top level.
+  {
+    const first = result.cuffRecording(0);
+    const last  = result.cuffRecording(result.readings.length - 1);
+    check('aobp: each reading carries its own cuff recording',
+      first.found && last.found, `${first.reason} / ${last.reason}`);
+    check('aobp: a reading past the last one reports absence rather than throwing',
+      result.cuffRecording(99).found === false);
+  }
+
   check('aobp: M 22 was sent before the readings',
     modes.indexOf(22) >= 0 && modes.indexOf(22) < modes.indexOf(3), modes.join(','));
 
@@ -516,6 +527,28 @@ async function endToEnd() {
     typeof result.indices.snr === 'number', String(result.indices.snr));
   check('device: a waveform array parsed',
     result.array('baEstimate').length > 100, String(result.array('baEstimate').length));
+  // The cuff recording is nested inside a <RawPressureWave> wrapper, never a
+  // direct child of the logger. A single measurement has exactly one; reading
+  // it with the plain scoped lookup finds nothing and looks like a device that
+  // was never configured to record.
+  {
+    const cuff = result.cuffRecording(0);
+    check('device: the single-measurement cuff recording was found',
+      cuff.found, cuff.reason);
+    check('device: the cuff recording decoded to plausible mmHg',
+      cuff.found && cuff.mmHg.length > 200 && Math.max(...cuff.mmHg) > 50,
+      cuff.found ? `${cuff.mmHg.length} samples, peak ${Math.max(...cuff.mmHg).toFixed(1)}` : 'absent');
+    equal('device: the cuff recording carries the sample rate', cuff.sampleRate, 200);
+
+    const sup = result.suprasystolicRecording;
+    check('device: the suprasystolic recording was found', sup.found, sup.reason);
+
+    // Shares the pressure channel's ADC zero, which only the cuff trace exposes.
+    const hold = result.cuffHoldRecording(cuff.zeroCounts);
+    check('device: the cuff hold recording was found', hold.found, hold.reason);
+    equal('device: a zero was supplied, so no offset warning', hold.reason, '');
+  }
+
   check('device: mode notifications arrived in order',
     modes.join(',').includes('3,4,5,6,7,2'), modes.join(','));
   check('device: pressure notifications arrived', pressures.length >= 8, String(pressures.length));

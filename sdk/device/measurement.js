@@ -284,13 +284,25 @@ export class BpPlusMeasurement {
    * The device only keeps this when it has been configured to; by default it
    * does not, and `found` is false with a reason saying so.
    *
+   * The two protocols put this in different places, and neither is a direct
+   * child of the logger:
+   *
+   *   single     MeasDataLogger > PressureWaves > RawPressureWave
+   *   AOBP / [3] MeasDataLogger > NibpBloodPressures > NibpBloodPressure
+   *                              > RawPressureWave
+   *
+   * A multi-reading result records the cuff once per determination, so the
+   * wrapper travels with the reading and there is no `<PressureWaves>` element
+   * at all. Reading only one of the two shapes finds nothing on the other and
+   * looks exactly like a device that was never configured to record.
+   *
    * @param {number} [index] which reading; 0 for a single-reading measurement
    */
   cuffRecording(index = 0) {
     const reading = this.readings[index];
     const base64 = reading
       ? reading.rawCuffPressure
-      : this.value('RawCuffPressureWave');
+      : childText(this._pressureWave(index), 'RawCuffPressureWave');
 
     return this._decodeRecording(
       base64,
@@ -298,6 +310,20 @@ export class BpPlusMeasurement {
       'The device did not record the cuff pressure for this measurement. ' +
       'It keeps the raw cuff trace only when configured to.'
     );
+  }
+
+  /**
+   * The `<RawPressureWave>` wrapper for a single-reading measurement.
+   *
+   * The container is plural because a protocol may record more than one; a
+   * plain BP+ measurement puts exactly one in it. Tolerates the wrapper sitting
+   * directly under the logger, so a device that omits the container still
+   * reads.
+   */
+  _pressureWave(index = 0) {
+    const container = firstChildNamed(this._logger, 'PressureWaves');
+    if (container) return childrenNamed(container, 'RawPressureWave')[index] || null;
+    return index === 0 ? firstChildNamed(this._logger, 'RawPressureWave') : null;
   }
 
   /**
