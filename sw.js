@@ -9,7 +9,7 @@
  */
 
 // ── This line is updated automatically by GitHub Actions on each push: ────────
-const CACHE_VERSION = 'v0.2.0d';
+const CACHE_VERSION = '6e8e23a';
 // ─────────────────────────────────────────────────────────────────────────────
 
 const CACHE_NAME = 'bpconnect-' + CACHE_VERSION;
