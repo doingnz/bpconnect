@@ -24,6 +24,9 @@ import { buildFeatureWrite, repairFeatureXml } from './device/features.js';
 import { eraseSilenceMs, toBase64 } from './device/firmware-update.js';
 import { MeasureMode, ResultCode } from './constants.js';
 
+/** Written without an escape sequence so the literal cannot be mangled. */
+const CRLF = String.fromCharCode(13, 10);
+
 const results = [];
 
 function check(name, condition, detail = '') {
@@ -508,6 +511,60 @@ async function endToEnd() {
 
   equal('device: reads the API version', await device.readApiVersion(), '2.4');
 
+  // ── The clock ───────────────────────────────────────────────────────────
+  {
+    const stamp = await device.readTime();
+    check('time: the device reports a 14-digit timestamp', /^[0-9]{14}$/.test(stamp), stamp);
+
+    // A set is answered by reading the clock back, so the reply can be checked
+    // against what was asked for rather than merely assumed to have worked.
+    const target = new Date(2031, 4, 17, 9, 8, 7);
+    const echoed = await device.writeTime(target);
+    equal('time: a set is echoed with the new time', echoed, '20310517090807');
+
+    const readBack = commands.parseTimestamp(await device.readTime());
+    check('time: the clock kept the value that was set',
+      readBack && Math.abs(readBack.getTime() - target.getTime()) < 5000,
+      String(readBack));
+
+    // Out by an hour, tolerance one minute: it must write.
+    const drifted = await device.syncTime({ toleranceMs: 60 * 1000 });
+    check('time: syncTime writes when the drift is beyond tolerance',
+      drifted.synced === true, drifted.reason);
+
+    // Now in step, so a second call must leave it alone.
+    const settled = await device.syncTime({ toleranceMs: 60 * 1000 });
+    check('time: syncTime leaves a clock that is within tolerance alone',
+      settled.synced === false, settled.reason);
+    check('time: and reports the drift it measured',
+      Math.abs(settled.driftMs) < 60 * 1000, String(settled.driftMs) + ' ms');
+
+    // A malformed stamp never reaches the wire: the command is built before
+    // anything is sent, so the refusal is local and costs no round trip.
+    await throws('time: a malformed stamp is refused before it is sent',
+      () => device.writeTime('2031051709'), ResultCode.invalidCommand);
+
+    // The device's own refusal is F 24, reached only by writing the raw line.
+    {
+      const raw = new SimulatorTransport({ tickMs: 5 });
+      const seen = [];
+      raw.on('data', bytes => seen.push(decode(bytes)));
+      await raw.open();
+      await raw.write(new TextEncoder().encode('y 2031051709' + CRLF));
+      await pause(60);
+      check('time: the device answers a malformed stamp with F 24 and no time',
+        seen.join('').includes('F 24') && !/[0-9]{14}/.test(seen.join('')),
+        JSON.stringify(seen.join('')));
+      await raw.close();
+    }
+
+    // A date that does not exist must not roll forward into March.
+    equal('time: 31 February parses as nothing',
+      commands.parseTimestamp('20310231090807'), null);
+    equal('time: a short stamp parses as nothing',
+      commands.parseTimestamp('2031023109'), null);
+  }
+
   const features = await device.readFeatures();
   equal('device: reads the device ID', features.deviceId, '015D90DE1A0000DA');
   equal('device: reads the measurement mode', features.measureMode, 0);
@@ -517,6 +574,16 @@ async function endToEnd() {
   check('device: reports idle through F 22', idle.running === false && idle.code === 22);
 
   const result = await device.measure({ patientId: 'SELFTEST-1' });
+
+  // The result is stamped from the device's own clock in local time. A UTC
+  // stamp reads as correct only where the host sits on UTC.
+  {
+    const stamped = commands.parseTimestamp(
+      String(result.timestamp || '').replace(/[-T:]/g, ''));
+    check('device: the result timestamp is the device clock in local time',
+      stamped && Math.abs(stamped.getTime() - Date.now()) < 5 * 60 * 1000,
+      String(result.timestamp));
+  }
 
   check('device: the measurement checksum matched', result.crcOk);
   equal('device: brachial systolic', result.brachial.sys, 110);

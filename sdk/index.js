@@ -102,6 +102,9 @@ export {
   validatePatientId,
   PATIENT_ID_PATTERN,
   PATIENT_ID_MAX_LENGTH,
+  // The inverse of the device's timestamp format, for comparing its clock
+  // with this computer's. See BpPlusDevice.syncTime().
+  parseTimestamp,
 } from './core/commands.js';
 
 /** SDK version, independent of the application's. */

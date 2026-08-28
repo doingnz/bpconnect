@@ -103,6 +103,36 @@ export function setTime(when) {
   return `y ${stamp} `;
 }
 
+/**
+ * Parse a device timestamp into a Date.
+ *
+ * The device keeps local time with no zone attached — `DateTime.Now` on its
+ * own clock — so the digits are read as local time here too. Building the Date
+ * from parts rather than parsing the string avoids the engine guessing UTC for
+ * a bare numeric form.
+ *
+ * @param {string} stamp  yyyyMMddHHmmss
+ * @returns {Date|null}   null when the stamp is not 14 digits or is not a real date
+ */
+export function parseTimestamp(stamp) {
+  const text = String(stamp === null || stamp === undefined ? '' : stamp).trim();
+  if (!/^\d{14}$/.test(text)) return null;
+
+  const n = (at, len) => Number(text.substr(at, len));
+  const year = n(0, 4), month = n(4, 2), day = n(6, 2);
+  const hour = n(8, 2), minute = n(10, 2), second = n(12, 2);
+
+  const when = new Date(year, month - 1, day, hour, minute, second, 0);
+
+  // Rejects 20260231000000 and friends, which Date would roll into March.
+  if (when.getFullYear() !== year || when.getMonth() !== month - 1 ||
+      when.getDate() !== day || when.getHours() !== hour ||
+      when.getMinutes() !== minute || when.getSeconds() !== second) {
+    return null;
+  }
+  return when;
+}
+
 /** Set the reporting detail level. Echoed as "D <level>" — consume it. */
 export function detail(level = DetailLevel.xml) {
   if (![0, 1, 2, 3, 4, 5].includes(level)) {

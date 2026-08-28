@@ -149,6 +149,10 @@ export class SimulatorTransport extends Transport {
         this._sendMode(this._mode);
         break;
 
+      case 'y':
+        this._deviceTime(rest);
+        break;
+
       case '!':
         this._send(this._isMeasuring()
           ? `F ${pad(ResultCode.deviceIsBusy)}`
@@ -194,6 +198,35 @@ export class SimulatorTransport extends Transport {
         this._send(`F ${pad(ResultCode.invalidCommand)}`);
         break;
     }
+  }
+
+  /**
+   * The `y` command, in both forms.
+   *
+   * A set answers by reading the clock back, so a caller gets a timestamp
+   * either way and can compare it with what it asked for. Anything that is not
+   * exactly fourteen digits is malformed and answers F 24 with no timestamp:
+   * a rejected set that ended in a time would be indistinguishable from one
+   * that worked.
+   */
+  /** What this device thinks the time is, including any offset that was set. */
+  _deviceNow() {
+    return new Date(Date.now() + (this._clockOffsetMs || 0));
+  }
+
+  _deviceTime(request) {
+    const stamp = String(request || '').trim();
+
+    if (stamp !== '') {
+      if (!/^[0-9]{14}$/.test(stamp) || !isRealTimestamp(stamp)) {
+        this._send(`F ${pad(ResultCode.invalidDateTime)}`);
+        return;
+      }
+      // Kept as an offset so the clock keeps running from what was set.
+      this._clockOffsetMs = timestampToMs(stamp) - Date.now();
+    }
+
+    this._send(formatTimestamp(this._deviceNow()));
   }
 
   /**
@@ -608,7 +641,12 @@ export class SimulatorTransport extends Transport {
       return;
     }
 
-    const stamp = new Date().toISOString().slice(0, 19);
+    // The device stamps the result from its own clock, in local time. Using
+    // toISOString() here put UTC in the XML, which reads as correct anywhere
+    // the host happens to sit on UTC and is out by the offset everywhere else.
+    // Taking the simulator's clock also means a device whose time was set, or
+    // deliberately skewed, says so in the result.
+    const stamp = formatXmlStamp(this._deviceNow());
     let xml = MEASUREMENT_XML.replace(DATETIME_PLACEHOLDER, stamp);
 
     // Written without escaping, as the device does — which is why the SDK
@@ -777,6 +815,30 @@ function base64ToBytes(text) {
   const out = new Uint8Array(binary.length);
   for (let i = 0; i < binary.length; i++) out[i] = binary.charCodeAt(i);
   return out;
+}
+
+function formatXmlStamp(when) {
+  const p = n => String(n).padStart(2, '0');
+  return `${when.getFullYear()}-${p(when.getMonth() + 1)}-${p(when.getDate())}` +
+         `T${p(when.getHours())}:${p(when.getMinutes())}:${p(when.getSeconds())}`;
+}
+
+function formatTimestamp(when) {
+  const p = n => String(n).padStart(2, '0');
+  return `${when.getFullYear()}${p(when.getMonth() + 1)}${p(when.getDate())}` +
+         `${p(when.getHours())}${p(when.getMinutes())}${p(when.getSeconds())}`;
+}
+
+function timestampToMs(stamp) {
+  const n = (at, len) => Number(stamp.substr(at, len));
+  return new Date(n(0, 4), n(4, 2) - 1, n(6, 2), n(8, 2), n(10, 2), n(12, 2)).getTime();
+}
+
+function isRealTimestamp(stamp) {
+  const when = new Date(timestampToMs(stamp));
+  return when.getFullYear() === Number(stamp.substr(0, 4)) &&
+         when.getMonth() === Number(stamp.substr(4, 2)) - 1 &&
+         when.getDate() === Number(stamp.substr(6, 2));
 }
 
 function pad(value, width = 2) {

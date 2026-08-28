@@ -172,6 +172,76 @@ export class BpPlusDevice extends Emitter {
   }
 
   /**
+   * Set the device clock.
+   *
+   * The device answers a successful set by reading its clock back, so the
+   * reply is a timestamp in the same form as `readTime()` and can be compared
+   * against what was asked for. A malformed stamp answers F 24 and sends no
+   * timestamp at all, which is deliberate on the device's part: a rejected set
+   * that ended in a time would read exactly like one that worked.
+   *
+   * The device keeps local time with no zone, so a Date is written as its
+   * local parts.
+   *
+   * @param {Date|string} [when]  defaults to now
+   * @returns {Promise<string>}   the device's clock after the write, yyyyMMddHHmmss
+   */
+  async writeTime(when = new Date()) {
+    const reply = await this._session.request(commands.setTime(when), {
+      accept: r => r.kind === ResponseKind.Time,
+    });
+    return reply.timestamp;
+  }
+
+  /**
+   * Bring the device clock into line with this computer's, if it has drifted.
+   *
+   * Reads the clock, and writes only when the difference is beyond the
+   * tolerance — a device that is close enough is left alone, so this is cheap
+   * enough to call before every measurement. The measurement timestamp is what
+   * ends up in the result XML, so a device whose clock is wrong mislabels data
+   * that has already been collected.
+   *
+   * @param {object} [options]
+   * @param {number} [options.toleranceMs]  default 5 minutes
+   * @param {Date}   [options.now]          the reference time; defaults to now
+   * @returns {Promise<{synced: boolean, driftMs: number|null, before: string,
+   *                    after: string|null, reason: string}>}
+   */
+  async syncTime(options = {}) {
+    const toleranceMs = options.toleranceMs ?? 5 * 60 * 1000;
+    const now = options.now instanceof Date ? options.now : new Date();
+
+    const before = await this.readTime();
+    const deviceTime = commands.parseTimestamp(before);
+
+    if (!deviceTime) {
+      // Nothing usable to compare against, so the safe move is to set it.
+      const after = await this.writeTime(now);
+      return {
+        synced: true, driftMs: null, before, after,
+        reason: 'The device did not report a usable time, so it was set.',
+      };
+    }
+
+    const driftMs = deviceTime.getTime() - now.getTime();
+
+    if (Math.abs(driftMs) <= toleranceMs) {
+      return {
+        synced: false, driftMs, before, after: null,
+        reason: 'The device clock is within tolerance.',
+      };
+    }
+
+    const after = await this.writeTime(now);
+    return {
+      synced: true, driftMs, before, after,
+      reason: 'The device clock was out by ' +
+              Math.round(Math.abs(driftMs) / 1000) + ' s, so it was set.',
+    };
+  }
+
+  /**
    * Whether a measurement is running.
    *
    * Answered through F codes: F 22 idle, F 17 running, F 14 from any other
