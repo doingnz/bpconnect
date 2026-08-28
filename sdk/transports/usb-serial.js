@@ -6,11 +6,10 @@
  * driver does the vendor-specific setup that Web Serial would otherwise have
  * done in the operating system.
  *
- * This class is *not* Web Serial, despite what the old tree called it. It is
- * also not generic: an adapter can only be opened if there is a driver for its
- * chip in `usb-serial-drivers.js`, because every vendor invented its own
- * control protocol. Today that means Prolific PL2303 and nothing else — see
- * that file for what adding another involves.
+ * This is not a generic serial port: an adapter can only be opened if there is
+ * a driver for its chip in `usb-serial-drivers.js`, because every vendor
+ * invented its own control protocol. Today that means Prolific PL2303 and
+ * nothing else — see that file for what adding another involves.
  *
  * Everything below the driver is chip-agnostic: finding the bulk endpoints,
  * the read loop, writing, and tearing down.
@@ -179,11 +178,10 @@ export class UsbSerialTransport extends Transport {
 }
 
 /**
- * The transport under its old name.
+ * An alias fixed to the Prolific driver.
  *
- * @deprecated Use `UsbSerialTransport`. Kept so existing integrations keep
- * working; it is the same class with the Prolific driver, which is what the old
- * name always meant.
+ * @deprecated Prefer `UsbSerialTransport`, which names what the class is rather
+ * than which chip it happens to open.
  */
 export class WebUsbPl2303Transport extends UsbSerialTransport {
   constructor(options = {}) {

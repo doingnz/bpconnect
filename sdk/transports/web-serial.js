@@ -2,12 +2,9 @@
  * Web Serial transport — a BP+ on a serial cable or a USB-to-serial adapter,
  * driven by `navigator.serial`.
  *
- * This is the class the old tree called `BpPlusSerial`, whose header comment
- * and CLAUDE.md both described it as a Capacitor plugin that would not work in
- * a browser. It always was Web Serial; the name and the comment were wrong.
- *
  * Requires a secure context (https:// or localhost) and Chrome, Edge or Opera
- * on desktop. Android has no Web Serial — use WebUsbPl2303Transport there.
+ * on desktop. Android has no Web Serial — use UsbSerialTransport there, or ask
+ * recommendedTransport() which of the two this browser can provide.
  *
  * Port settings per section 2.1: 8N1, RTS/CTS, 115200 by default (older BP+
  * devices come up at 9600 and need `b 115200` sent at 9600 first).

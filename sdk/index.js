@@ -52,7 +52,7 @@ export { SimulatorTransport }             from './transports/simulator.js';
 export { WebSerialTransport }             from './transports/web-serial.js';
 export {
   UsbSerialTransport,
-  // The old name for the same class, kept so existing integrations keep working.
+  // An alias fixed to the Prolific driver; prefer UsbSerialTransport.
   WebUsbPl2303Transport,
 } from './transports/usb-serial.js';
 
