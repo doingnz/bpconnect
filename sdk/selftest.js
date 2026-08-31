@@ -24,6 +24,7 @@ import { UsbSerialTransport } from './transports/usb-serial.js';
 import { Pl2303Driver, USB_SERIAL_DRIVERS, allUsbSerialFilters }
   from './transports/usb-serial-drivers.js';
 import { recommendedTransport, TransportKind } from './transports/detect.js';
+import { unusableReason } from './device/measurement.js';
 import { buildFeatureWrite, repairFeatureXml } from './device/features.js';
 import { eraseSilenceMs, toBase64 } from './device/firmware-update.js';
 import { MeasureMode, ResultCode } from './constants.js';
@@ -515,24 +516,45 @@ async function featureWriteEndToEnd() {
  */
 async function usbSerialAndDetection() {
   // ── The chooser ─────────────────────────────────────────────────────────
-  const desktop = { android: false, mobile: false, secureContext: true,
+  const desktop = { android: false, mobile: false, handheld: false, secureContext: true,
                     webSerial: true, webUsb: true, webBluetooth: true };
   equal('detect: desktop Chrome uses Web Serial',
     recommendedTransport(desktop).kind, TransportKind.serial);
 
-  // The case this exists for: Chrome on an Android tablet has WebUSB and
-  // Bluetooth but no Web Serial at all.
-  const android = { android: true, mobile: true, secureContext: true,
+  // The case this exists for: Chrome on an Android tablet reaches the cable
+  // over WebUSB.
+  const android = { android: true, mobile: true, handheld: true, secureContext: true,
                     webSerial: false, webUsb: true, webBluetooth: true };
   const pick = recommendedTransport(android);
   equal('detect: Android falls back to the USB-to-serial adapter',
     pick.kind, TransportKind.usbSerial);
-  check('detect: and says why', /Android has no Web Serial/.test(pick.reason), pick.reason);
+  check('detect: and says why', /WebUSB/.test(pick.reason), pick.reason);
 
-  // Feature first, platform second: an Android that shipped Web Serial would
-  // simply use it.
-  equal('detect: Android with Web Serial would use it',
-    recommendedTransport({ ...android, webSerial: true }).kind, TransportKind.serial);
+  // The regression this file exists to prevent. Chrome 151 on Android DOES
+  // expose navigator.serial, but its port list is Bluetooth SPP devices, not
+  // the cable — so Web Serial being present is not a reason to prefer it.
+  // Measured on a Galaxy S23 Ultra and a Galaxy Tab S10 FE.
+  const androidWithSerial = { ...android, webSerial: true };
+  equal('detect: Android with Web Serial STILL uses WebUSB',
+    recommendedTransport(androidWithSerial).kind, TransportKind.usbSerial);
+  check('detect: and explains that Web Serial there is not the cable',
+    /Bluetooth/.test(recommendedTransport(androidWithSerial).reason),
+    recommendedTransport(androidWithSerial).reason);
+
+  // Chrome's "Desktop site" mode defeats every user-agent signal: platform
+  // reads "Linux" and mobile reads false on a device that is plainly a tablet.
+  // The touch-derived handheld flag is what survives it, so it alone must be
+  // enough to route to WebUSB.
+  const desktopModeTablet = { android: false, mobile: false, handheld: true,
+                              secureContext: true, webSerial: true,
+                              webUsb: true, webBluetooth: true };
+  equal('detect: a tablet in desktop-site mode still uses WebUSB',
+    recommendedTransport(desktopModeTablet).kind, TransportKind.usbSerial);
+
+  // The converse must hold, or every touch laptop is misrouted onto a WebUSB
+  // path that Windows will refuse to claim.
+  equal('detect: a desktop with a touch screen stays on Web Serial',
+    recommendedTransport({ ...desktop, handheld: false }).kind, TransportKind.serial);
 
   equal('detect: bluetooth only, when that is all there is',
     recommendedTransport({ ...android, webUsb: false }).kind, TransportKind.bluetooth);
@@ -542,6 +564,43 @@ async function usbSerialAndDetection() {
   equal('detect: nothing available reports no transport', none.kind, null);
   check('detect: an insecure context is named as the likely cause',
     /secure context/.test(none.reason), none.reason);
+
+  // ── Is a result a reading? ──────────────────────────────────────────────
+  // A result block is not proof a determination happened. Measured on a BP+
+  // whose hose was kinked: the device retried, aborted the third attempt on
+  // over-pressure, and still returned a well-formed block carrying zeros.
+  const range = { sys: {max:280,min:40}, dia: {max:200,min:20},
+                  map: {max:245,min:25}, hr: {max:240,min:30} };
+  const brachial = (sys, dia, pr = 70) => ({ brachial: { sys, dia, pr } });
+
+  equal('result: a real reading is usable',
+    unusableReason(brachial(122, 78), range), null);
+
+  check('result: no pressure at all is refused',
+    unusableReason(brachial(null, null), range)?.code === ResultCode.measurementDataInvalid);
+
+  check('result: the zeros an aborted run returns are refused',
+    unusableReason(brachial(0, 0, 0), range)?.code === ResultCode.measurementBPOutOfRange,
+    JSON.stringify(unusableReason(brachial(0, 0, 0), range)));
+
+  check('result: below the declared minimum is refused',
+    unusableReason(brachial(35, 20), range)?.code === ResultCode.measurementBPOutOfRange);
+
+  check('result: above the declared maximum is refused',
+    unusableReason(brachial(300, 90), range)?.code === ResultCode.measurementBPOutOfRange);
+
+  check('result: systolic not above diastolic is refused',
+    unusableReason(brachial(100, 100), range)?.code === ResultCode.measurementDataInvalid);
+
+  equal('result: at the declared limits is usable',
+    unusableReason(brachial(280, 21, 240), range), null);
+
+  // Without a feature list there is nothing to range-check against, but a
+  // result still has to carry a pressure.
+  equal('result: no bpRange still accepts a plausible reading',
+    unusableReason(brachial(122, 78), null), null);
+  check('result: no bpRange still refuses an empty result',
+    unusableReason(brachial(null, null), null)?.code === ResultCode.measurementDataInvalid);
 
   // ── The driver registry ─────────────────────────────────────────────────
   check('usb: the Prolific driver is registered',
@@ -730,8 +789,13 @@ async function endToEnd() {
       check('device: a failed measurement rejects', false, 'it resolved instead');
     } catch (err) {
       equal('device: rejects with the device result code', err.code, ResultCode.nibpDeviceError);
-      check('device: the error carries a readable message',
-        /NIBP device error/i.test(err.message), err.message);
+      // Not the exact wording, which is allowed to improve. What must hold is
+      // that the code has an entry at all: RESULT_CODE_TEXT falls back to "The
+      // device reported result code nn", and an edit that deletes a line from
+      // that table shows up on a bench as a number where a sentence should be.
+      check('device: the error carries a sentence, not a bare code',
+        !/reported result code/i.test(err.message) && err.message.length > 20,
+        err.message);
     }
 
     // A measurement reports its outcome exactly once: one F, then one M 02.

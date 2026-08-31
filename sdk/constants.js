@@ -136,7 +136,19 @@ const RESULT_CODE_TEXT = Object.freeze({
   8:  'The measurement did not finish.',
   9:  'No measurement found. A stored file may exist but hold no usable measurement — try recalling it without reprocessing.',
   10: 'The measurement did not complete within the permitted time.',
-  11: 'NIBP device error — the retry limit was reached.',
+  // F 11 is the blood-pressure module's general fault code, and carries no cause
+  // of its own: FinishMeasurementCode.nibpDeviceError in the firmware is a bare
+  // enum member with nothing attached. It was worded here as "the retry limit
+  // was reached", which is one cause among several — a BP+ that aborted on the
+  // FIRST attempt with over-pressure reports the same 11, and that wording sent
+  // an operator looking for retries that never happened.
+  //
+  // The specific cause travels separately, in the saved record's per-reading
+  // Alert, which firmware composes as "Unable to measure BP: Over Pressure
+  // (C19-1)" — category, then the NIBP module's error code and reason.
+  // device.measure() carries it on the error as `alerts`, for a host to show
+  // separately, so this text only has to name the category.
+  11: 'The blood-pressure module reported an error.',
   12: 'The measurement data is invalid.',
   13: 'Blood pressure was outside the measurable range.',
   14: 'Invalid command — the device is on a screen or in a mode that cannot carry it out.',

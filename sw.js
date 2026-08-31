@@ -25,7 +25,7 @@ const PRECACHE = [
   './framework7/js/framework7.bundle.min.js',
   './js/vendor/chart.umd.min.js',
 
-  // The SDK. UI-free — see docs/SDK.md.
+  // The SDK. A vendored copy of Uscom/bpplus-js-sdk -- see sdk/SDK-VERSION.json.
   './sdk/index.js',
   './sdk/constants.js',
   './sdk/core/emitter.js',

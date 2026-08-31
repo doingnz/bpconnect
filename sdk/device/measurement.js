@@ -23,7 +23,12 @@
  */
 
 import { receiveError } from '../core/errors.js';
-import { describeSignalQuality, describeRhythm } from '../constants.js';
+import {
+  describeSignalQuality,
+  describeRhythm,
+  ResultCode,
+  SIGNAL_QUALITY_BANDS,
+} from '../constants.js';
 
 export class BpPlusMeasurement {
 
@@ -435,4 +440,245 @@ function medianOfFirst(values, n) {
   head.sort((a, b) => a - b);
   const mid = head.length >> 1;
   return head.length % 2 ? head[mid] : (head[mid - 1] + head[mid]) / 2;
+}
+
+
+// ── Is this result a reading? ────────────────────────────────────────────────
+
+/**
+ * Why a result cannot be used as a measurement, or null when it can.
+ *
+ * A result block is not proof that a determination happened. A run that never
+ * completed one — the hose kinked, the device retried, the last attempt aborted
+ * on over-pressure — still returns a well-formed block, and it carried zeros in
+ * the case this was written for. Anything that asks only whether a field was
+ * filled in accepts that.
+ *
+ * The bounds are the device's own, from `<bpRange>` in the feature list, so
+ * this rejects what the hardware says it cannot have measured rather than what
+ * looks unlikely. Pass null for `bpRange` and only the checks that need no
+ * device knowledge are applied.
+ *
+ * `<bpRange>` is the BRACHIAL range — what the NIBP module can measure — and is
+ * the right bound for the values checked here. Do not narrow it to the ~260
+ * mmHg figure that appears elsewhere: that is a different limit, about headroom
+ * for the suprasystolic phase rather than about brachial pressure. The cuff has
+ * to sit well above systolic to capture the pulse wave — nominally SYS + 35,
+ * settling nearer SYS + 40 — so a systolic of 280 would need roughly 320 mmHg
+ * of cuff, past the 300 mmHg at which the safety system aborts and dumps.
+ *
+ * The consequence is two ceilings, not one: this device measures brachial
+ * pressure up to and including 280, and above about 260 it will simply fail to
+ * produce the suprasystolic rhythm and everything derived from it. A brachial
+ * reading of 275 is valid and must not be refused here because the PWA that
+ * accompanies it was out of reach.
+ *
+ * Works on both result shapes: a BpPlusMeasurement and the plain object
+ * parseSummaryLine() returns both expose `brachial`.
+ *
+ * @param {BpPlusMeasurement|object} result
+ * @param {{sys, dia, map, hr}|null} [bpRange]  from BpPlusFeatures.bpRange
+ * @returns {{code: number, message: string}|null}
+ */
+export function unusableReason(result, bpRange = null) {
+  const bp = result && result.brachial;
+
+  if (!bp || bp.sys === null || bp.sys === undefined ||
+             bp.dia === null || bp.dia === undefined) {
+    return {
+      code: ResultCode.measurementDataInvalid,
+      message: 'The device did not return a blood pressure.',
+    };
+  }
+
+  if (bpRange) {
+    const outside = [];
+    if (beyondRange(bp.sys, bpRange.sys)) outside.push(`systolic ${bp.sys}`);
+    if (beyondRange(bp.dia, bpRange.dia)) outside.push(`diastolic ${bp.dia}`);
+    if (bp.pr !== null && bp.pr !== undefined && beyondRange(bp.pr, bpRange.hr)) {
+      outside.push(`heart rate ${bp.pr}`);
+    }
+
+    if (outside.length) {
+      return {
+        code: ResultCode.measurementBPOutOfRange,
+        message: `The result is outside what this device can measure (${outside.join(', ')}).`,
+      };
+    }
+  }
+
+  // Needs no device knowledge, and no real reading fails it. An aborted run can
+  // produce a pair that is individually in range and still is not a pressure.
+  if (bp.sys <= bp.dia) {
+    return {
+      code: ResultCode.measurementDataInvalid,
+      message: `The result is not a blood pressure (systolic ${bp.sys} is not above diastolic ${bp.dia}).`,
+    };
+  }
+
+  return null;
+}
+
+/** Outside the device's declared min..max for this value. */
+function beyondRange(value, limits) {
+  if (!limits || !Number.isFinite(limits.min) || !Number.isFinite(limits.max)) return false;
+  return value < limits.min || value > limits.max;
+}
+
+/**
+ * The alerts in one `<Alert>` element, as `{message, tm2917_hex_result}`.
+ *
+ * Firmware packs the element as pairs, semicolon separated, with a trailing
+ * separator:
+ *
+ *   Unable to measure BP: Over Pressure (C19);1B0B6843313930412004CB;
+ *
+ * A measurement that raised several alerts carries several pairs in the same
+ * element. The two halves are for different readers and must not be run
+ * together: the message is written for a person, and the TM2917 hex result is
+ * the module's raw reply, which means nothing to a clinical user and belongs in
+ * a log or a support report.
+ *
+ * @param {string|null} text  the raw <Alert> contents
+ * @returns {Array<{message: string, tm2917_hex_result: string|null}>}
+ */
+/**
+ * What one alert is telling a host: a signal-quality report, or a fault.
+ *
+ * The `<Alert>` element carries both. "Excellent Signal" and "Unable to measure
+ * BP: Over Pressure (C19)" arrive by the same route, and a host that treats
+ * every alert as a problem puts a warning on a perfect measurement.
+ *
+ * Quality words are the SIGNAL_QUALITY_BANDS labels, matched at the start of
+ * the message — the device says "Excellent Signal", so the label leads. Anchored
+ * on purpose: a fault sentence that happens to contain one of these words later
+ * is still a fault.
+ *
+ * Severity is for a host deciding a colour:
+ *
+ *   good      Excellent, Good, Acceptable — the reading is usable
+ *   caution   Poor — a reading the device does not trust
+ *   bad       Invalid, and every fault
+ *
+ * @param {string} message
+ * @returns {{severity: 'good'|'caution'|'bad', quality: string|null}}
+ */
+export function classifyAlert(message) {
+  const text = String(message || '').trim();
+
+  for (const band of SIGNAL_QUALITY_BANDS) {
+    const pattern = new RegExp('^' + band.label + '\\b', 'i');
+    if (!pattern.test(text)) continue;
+
+    // Poor and Invalid are both unusable, so `usable` alone cannot separate
+    // them — and they call for different colours: one says look at this, the
+    // other says the reading is not one.
+    return {
+      severity: band.usable ? 'good' : (band.label === 'Invalid' ? 'bad' : 'caution'),
+      quality: band.label,
+    };
+  }
+
+  // Not a quality word: a fault, or something this SDK has not seen. Either way
+  // it is shown rather than softened.
+  return { severity: 'bad', quality: null };
+}
+
+export function parseAlerts(text) {
+  if (!text) return [];
+
+  const parts = String(text).split(';');
+  const alerts = [];
+
+  for (let i = 0; i < parts.length; i += 2) {
+    const message = (parts[i] || '').trim();
+    if (!message) continue;               // the trailing separator, or padding
+
+    const hex = (parts[i + 1] || '').trim();
+    alerts.push({
+      message,
+      tm2917_hex_result: hex || null,
+      ...classifyAlert(message),
+    });
+  }
+
+  return alerts;
+}
+
+/**
+ * Every alert on a result, in order, without repeats, and where it came from.
+ *
+ * An AOBP run takes several blood-pressure determinations and each carries its
+ * own Alert, so "which reading" is part of the answer: nobody is in the room
+ * while an AOBP measurement runs, and afterwards the alerts are the only record
+ * of how it went. `readings` holds the 1-based determination numbers an alert
+ * appeared on, and is empty for a single measurement's own Alert.
+ *
+ * @param {BpPlusMeasurement|object} result
+ * @param {object|null} [bpRange]  from BpPlusFeatures.bpRange, so a fault on a
+ *        determination that succeeded anyway can be told from one that did not
+ * @returns {Array<{message: string, tm2917_hex_result: string|null,
+ *                  severity: string, quality: string|null, readings: number[],
+ *                  recovered: boolean}>}
+ */
+export function alertsOf(result, bpRange = null) {
+  if (!result) return [];
+
+  const found = [];
+  const list = result.readings || [];
+
+  for (let i = 0; i < list.length; i++) {
+    const reading = list[i];
+    if (!reading || !reading.alert) continue;
+
+    // The TM2917 retries a determination it could not complete, up to three
+    // times, and when a later attempt succeeds it records the good values and
+    // leaves the failed attempt's Alert in place. So the alert on a
+    // determination that produced usable numbers describes something the module
+    // recovered from — a warning — and the identical text on one that produced
+    // nothing is an error. Severity is contextual, not lexical.
+    const recovered = unusableReason({ brachial: reading }, bpRange) === null;
+
+    for (const alert of parseAlerts(reading.alert)) {
+      found.push({ alert, reading: i + 1, recovered });
+    }
+  }
+
+  // A single (non-AOBP) result carries one Alert of its own rather than a list
+  // of determinations to hang it on.
+  if (!found.length) {
+    const single = typeof result.alert === 'string'
+      ? result.alert
+      : (typeof result.value === 'function' ? result.value('Alert') : null);
+    for (const alert of parseAlerts(single)) {
+      found.push({ alert, reading: null, recovered: false });
+    }
+  }
+
+  const byMessage = new Map();
+
+  for (const { alert, reading, recovered } of found) {
+    // A quality word keeps the severity its text carries. A fault is softened
+    // to a warning only where the determination it sits on succeeded anyway.
+    const severity = alert.quality || !recovered ? alert.severity : 'caution';
+
+    const existing = byMessage.get(alert.message);
+    if (existing) {
+      if (reading !== null && !existing.readings.includes(reading)) {
+        existing.readings.push(reading);
+      }
+      // The same text on a determination that failed is the worse case.
+      if (severity === 'bad') existing.severity = 'bad';
+      existing.recovered = existing.recovered && recovered;
+      continue;
+    }
+    byMessage.set(alert.message, {
+      ...alert,
+      severity,
+      recovered,
+      readings: reading === null ? [] : [reading],
+    });
+  }
+
+  return [...byMessage.values()];
 }

@@ -19,6 +19,8 @@
  *   progress   {phase, ...}  — XML receive, AOBP rest period
  *   log        {dir: 'tx'|'rx', text, at}  — every line, for a trace pane
  *   warning    {message}     — non-fatal, e.g. a checksum mismatch
+ *   deviceStarted {mode, cancelling}  — someone pressed Start on the device;
+ *                only with hostStartedOnly, see _refuseDeviceStart()
  *   error      BpPlusError   — something failed outside a pending request
  *
  * Failures reject with a BpPlusError carrying the Table 5 code, so a caller
@@ -36,8 +38,9 @@ import {
   DeviceMode,
   ResultCode,
   describeMode,
+  isFailureCode,
 } from '../constants.js';
-import { BpPlusMeasurement } from './measurement.js';
+import { BpPlusMeasurement, unusableReason, alertsOf } from './measurement.js';
 import { BpPlusFeatures, buildFeatureWrite } from './features.js';
 import { FirmwareUpdateJob } from './firmware-update.js';
 
@@ -56,12 +59,41 @@ const BP_READING_SECONDS = 90;
 /** The suprasystolic capture and processing that follow the BP readings. */
 const PWA_SECONDS = 180;
 
+/**
+ * How long to wait after a result block for the device's verdict on it.
+ *
+ * The M 02 that ends a measurement follows the result immediately, so a good
+ * measurement resolves on that rather than on this timeout. It exists only so a
+ * device that never returns to Ready cannot hang the measurement.
+ */
+const POST_RESULT_GRACE_MS = 2000;
+
+/**
+ * Modes that mean a measurement is starting or running on the device.
+ *
+ * countDownAobp is the AOBP rest period — the trace shows M 22 immediately
+ * after `s` — and measuringBp is the cuff on the arm. Either seen while the
+ * host is not measuring means somebody pressed Start on the device itself.
+ */
+const MEASUREMENT_UNDERWAY_MODES = Object.freeze([
+  DeviceMode.countDownAobp,
+  DeviceMode.measuringBp,
+]);
+
+/** Modes that mean the device is back at rest, so an episode has ended. */
+const AT_REST_MODES = Object.freeze([DeviceMode.ready, DeviceMode.offline]);
+
 export class BpPlusDevice extends Emitter {
 
   /**
    * @param {import('../transports/transport.js').Transport} transport
    * @param {object} [options]
    * @param {number} [options.detailLevel]  4 (XML) by default; 0 gives S lines
+   * @param {boolean} [options.hostStartedOnly]
+   *        cancel any measurement the device starts by itself. Off by default,
+   *        because a tool that watches a device should not interfere with it —
+   *        but any host that records against a patient ID needs it on. See
+   *        _refuseDeviceStart().
    */
   constructor(transport, options = {}) {
     super();
@@ -71,6 +103,9 @@ export class BpPlusDevice extends Emitter {
     this._detailLevel = options.detailLevel ?? DetailLevel.xml;
     this._lastMode    = null;
     this._features    = null;
+    this._awaitingVerdict = false;
+    this._hostStartedOnly = options.hostStartedOnly === true;
+    this._refusing        = false;
 
     this._session.on('mode',     m => this._handleMode(m));
     this._session.on('pressure', p => this.emit('pressure', p));
@@ -83,11 +118,26 @@ export class BpPlusDevice extends Emitter {
       this.emit('log', { dir: 'rx', text: `E "${message}"`, at: Date.now(), note: 'diagnostic' });
     });
     this._session.on('unsolicited', response => {
+      // An annotation on the line above, never a repeat of it. The session has
+      // already logged every received line, so echoing the raw text here put
+      // the same F nn in the trace twice and read as two failures from the
+      // device — which is the mistake session.js takes care to avoid for stray
+      // failures, for the same reason.
+      //
+      // "Unsolicited" is the session's word: no *request* was waiting. Once a
+      // measurement's verdict is being watched for, that is no longer the whole
+      // truth — the F nn that ends a measurement answered nothing and is still
+      // the most important line in the trace.
+      const isVerdict = this._awaitingVerdict &&
+                        response.kind === ResponseKind.Failure;
+
       this.emit('log', {
         dir: 'rx',
-        text: `${response.raw}   (unsolicited)`,
+        text: isVerdict
+          ? '    ^ the measurement finished with this error'
+          : '    ^ unsolicited — nothing was waiting for it',
         at: Date.now(),
-        note: 'unsolicited',
+        note: isVerdict ? 'verdict' : 'unsolicited',
       });
     });
     this._session.on('close', () => this._setState(DeviceState.disconnected));
@@ -115,6 +165,53 @@ export class BpPlusDevice extends Emitter {
   _handleMode(mode) {
     this._lastMode = mode;
     this.emit('mode', mode);
+    if (this._hostStartedOnly) this._refuseDeviceStart(mode);
+  }
+
+  /**
+   * Stop a measurement nobody asked this SDK for.
+   *
+   * A BP+ has its own Start button, and a measurement begun there carries no
+   * patient ID and belongs to no record. The reading is real and the device
+   * stores it, so it is not harmless: it is an unattributed measurement in the
+   * device's file list that a host cannot match to anyone, and on a study
+   * instrument it is a measurement taken outside the protocol.
+   *
+   * The host's own measurements are excluded by state rather than by timing —
+   * measure() sets `measuring` before it sends `s`, so the M 22 and M 03 that
+   * follow are already accounted for.
+   *
+   * Nothing is sent for the AOBP menu itself. There is no measurement to cancel
+   * while the operator is still choosing, and `c` would only draw an F 22. The
+   * event is emitted so a host can say something before they press Start; the
+   * cancel follows if they do.
+   */
+  _refuseDeviceStart(mode) {
+    if (!this.isConnected || this.isMeasuring) return;
+
+    if (AT_REST_MODES.includes(mode.code)) {
+      this._refusing = false;             // the episode is over
+      return;
+    }
+
+    const underway = MEASUREMENT_UNDERWAY_MODES.includes(mode.code);
+    if (!underway && mode.code !== DeviceMode.selectAobpMode) return;
+
+    // One refusal per episode: M 23, M 22 and M 03 can arrive in sequence for a
+    // single press, and three cancels would be two too many.
+    if (this._refusing) return;
+    if (underway) this._refusing = true;
+
+    this.emit('deviceStarted', { mode, cancelling: underway });
+
+    if (!underway) return;
+
+    this.cancel().catch(error => {
+      this.emit('warning', {
+        message: 'A measurement was started on the device and could not be ' +
+                 'cancelled: ' + error.message,
+      });
+    });
   }
 
   // ── Connection ────────────────────────────────────────────────────────────
@@ -300,23 +397,126 @@ export class BpPlusDevice extends Emitter {
 
     this._setState(DeviceState.measuring);
 
+    // Armed before the start goes out, so nothing said between the result and
+    // M 02 can be missed. See _watchMeasurementOutcome().
+    const outcome = this._watchMeasurementOutcome();
+
     try {
       const reply = await this._session.request(line, {
         accept: r => r.kind === ResponseKind.XmlBlock || r.kind === ResponseKind.Summary,
         timeoutMs: options.timeoutMs || measurementTimeoutMs(options),
       });
 
-      if (reply.kind === ResponseKind.Summary) {
-        return parseSummaryLine(reply.fields);
+      // A result block is not the end of the measurement. The device sends the
+      // result, then F nn if the determination actually failed, and then M 02
+      // as it returns to Ready. Returning on the result alone reported an
+      // over-pressure abort as a good reading.
+      const result = reply.kind === ResponseKind.Summary
+        ? parseSummaryLine(reply.fields)
+        : new BpPlusMeasurement(reply.xml, {
+            crcOk: reply.crcOk,
+            sizeBytes: reply.size,
+          });
+
+      // Built before the verdict is read, because a failed measurement still
+      // saves and returns a record, and that record carries the NIBP module's
+      // own account of what went wrong. The Table 5 code says only that the
+      // module failed; the Alert says it was over-pressure, and which code.
+      const failure = await outcome.settle(POST_RESULT_GRACE_MS);
+      if (failure) {
+        // Attached, not appended to the message. The message names the category
+        // for the status line; the alerts are a list a host shows in its own
+        // right, and each carries a TM2917 hex result that is for a log rather
+        // than for the person holding the cuff.
+        throw new BpPlusError(failure.code, {
+          command: line,
+          alerts: alertsOf(result),
+        });
       }
 
-      return new BpPlusMeasurement(reply.xml, {
-        crcOk: reply.crcOk,
-        sizeBytes: reply.size,
-      });
+      // A device does not always announce a result it cannot stand behind, so
+      // the result is judged as well as the verdict on it. Off by
+      // `{ validate: false }` for a caller that wants whatever came back.
+      if (options.validate !== false) {
+        const unusable = unusableReason(
+          result,
+          this._features ? this._features.bpRange : null
+        );
+        if (unusable) {
+          throw new BpPlusError(unusable.code, {
+            message: unusable.message,
+            command: line,
+          });
+        }
+      }
+
+      return result;
     } finally {
+      outcome.cancel();
       this._setState(this.isConnected ? DeviceState.connected : DeviceState.disconnected);
     }
+  }
+
+  /**
+   * Watch for a failure reported after the result block.
+   *
+   * The device ends a measurement in two parts: the result, then its verdict on
+   * it. A cuff that over-pressured sends the XML it managed to collect, then
+   * `F 11`, then `M 02` — and `F 11` is what the device's own screen is showing
+   * as "Unable to measure BP: Over pressure". A host that returns on the XML
+   * has already called the measurement good by the time the verdict arrives.
+   *
+   * A failure that arrives WHILE the request is in flight already rejects it
+   * through the session's normal path. This covers only the window after the
+   * result has satisfied the request and before the device is back at Ready.
+   */
+  _watchMeasurementOutcome() {
+    let failure = null;
+    let ready = false;
+    let wake = null;
+
+    // Read by the unsolicited handler, so an F nn that ends a measurement is
+    // labelled as the verdict it is rather than as a stray.
+    this._awaitingVerdict = true;
+
+    const offUnsolicited = this._session.on('unsolicited', response => {
+      if (response.kind === ResponseKind.Failure && isFailureCode(response.code)) {
+        if (!failure) failure = response;
+        if (wake) wake();
+      }
+    });
+
+    const offMode = this._session.on('mode', mode => {
+      if (mode.code === DeviceMode.ready) {
+        ready = true;
+        if (wake) wake();
+      }
+    });
+
+    return {
+      cancel: () => { this._awaitingVerdict = false; offUnsolicited(); offMode(); },
+
+      /**
+       * The failure the device reported after the result, or null.
+       *
+       * Resolves as soon as the device is back at Ready, so a good measurement
+       * pays no more than the round trip of the M 02 that follows it.
+       */
+      settle(timeoutMs) {
+        if (failure) return Promise.resolve(failure);
+
+        // Ready is only meaningful from here: the device was at Ready when the
+        // measurement was armed, and a mode notification from earlier in the
+        // run must not stand in for the one that ends it.
+        ready = false;
+
+        return new Promise(resolve => {
+          const done = () => { wake = null; clearTimeout(timer); resolve(failure); };
+          const timer = setTimeout(done, timeoutMs);
+          wake = () => { if (failure || ready) done(); };
+        });
+      },
+    };
   }
 
   /**
