@@ -4,8 +4,8 @@
   "theme_color": "#ffffff",
   "background_color": "#ffffff",
   "display": "standalone",
-  "Scope": "/",
-  "start_url": "/bpconnect",
+  "scope": "./",
+  "start_url": "./",
   "icons": [
     {
       "src": "apple-touch-icon-72.png",
