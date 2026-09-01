@@ -1,7 +1,7 @@
 /**
  * BP+ Connect — Service Worker
  *
- * CACHE_VERSION is replaced on every push to main/hwfc by GitHub Actions.
+ * CACHE_VERSION is replaced on every push to main by GitHub Actions.
  * Changing this constant causes the browser to detect the SW file has changed,
  * download the new SW, install it (caching all assets under the new name),
  * then wait.  The page shows an "Update available" banner; the user clicks
