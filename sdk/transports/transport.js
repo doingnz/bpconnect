@@ -25,7 +25,7 @@
  */
 
 import { Emitter } from '../core/emitter.js';
-import { connectionError } from '../core/errors.js';
+import { connectionError, ErrorReason } from '../core/errors.js';
 
 export const TransportState = Object.freeze({
   disconnected: 'disconnected',
@@ -47,6 +47,16 @@ export class Transport extends Emitter {
   /** Human-readable description of what is on the other end, once known. */
   get description() { return this.name; }
 
+  /**
+   * Why this transport is not usable, when it knows. An ErrorReason, or
+   * undefined when the failure is nothing more specific than "it did not work".
+   * Subclasses that can tell the cases apart set `_unplugged`; everything else
+   * leaves the caller with the code alone, as before.
+   */
+  get reason() {
+    return this._unplugged ? ErrorReason.unplugged : undefined;
+  }
+
   async open() {
     if (this._state === TransportState.connected) return;
     this._setState(TransportState.connecting);
@@ -54,10 +64,20 @@ export class Transport extends Emitter {
       await this._open();
       this._setState(TransportState.connected);
     } catch (err) {
+      // Release whatever _open() managed to acquire before it failed. Opening a
+      // serial port is several steps — request the port, open it, take the
+      // reader and writer — and a failure at any step after the second leaves
+      // the port held by this page. The state then says disconnected, so
+      // close() would return without doing anything, and the next attempt meets
+      // "The port is already open" from the browser with no way to recover
+      // short of a reload.
+      try { await this._close(); } catch { /* nothing to release */ }
+
       this._setState(TransportState.disconnected);
       throw err instanceof Error && err.name === 'BpPlusError'
         ? err
-        : connectionError(`Could not connect over ${this.name}: ${err.message}`, err);
+        : connectionError(`Could not connect over ${this.name}: ${err.message}`,
+                          err, this.reason);
     }
   }
 
@@ -73,7 +93,7 @@ export class Transport extends Emitter {
   /** @param {Uint8Array} bytes */
   async write(bytes) {
     if (this._state !== TransportState.connected) {
-      throw connectionError(`Not connected over ${this.name}.`);
+      throw connectionError(`Not connected over ${this.name}.`, null, this.reason);
     }
     await this._write(bytes);
   }

@@ -34,14 +34,17 @@ import { Emitter } from './emitter.js';
 import { ByteStream, decodeLine } from './byte-stream.js';
 import { classify, isNotification, ResponseKind } from './responses.js';
 import { crc8 } from './crc8.js';
-import { BpPlusError, timeoutError, connectionError } from './errors.js';
+import { BpPlusError, timeoutError, connectionError, ErrorReason } from './errors.js';
 import { isFailureCode, ResultCode, describeMode } from '../constants.js';
 
 /** Default window for an explicitly armed stray failure. See expectStrayFailure. */
 const STRAY_FAILURE_WINDOW_MS = 5000;
 
 /** Default per-request deadline. Long operations pass their own. */
-const DEFAULT_TIMEOUT_MS = 10000;
+// Five seconds, not ten. This is how long an operator stands looking at a page
+// that says nothing is wrong yet, and a BP+ that is going to answer answers at
+// once — the wait only ever elapses in full when the cable is not in the device.
+const DEFAULT_TIMEOUT_MS = 5000;
 
 /** Section 2.6 recommends 30 s for a whole XML block. */
 const XML_BLOCK_TIMEOUT_MS = 30000;
@@ -187,7 +190,8 @@ export class Session extends Emitter {
       }
     }).catch(err => {
       if (this._pending !== request) return;
-      this._settle(request, null, connectionError('Could not write to the device.', err));
+      this._settle(request, null, connectionError('Could not write to the device.', err,
+        this._transport.reason || ErrorReason.writeFailed));
     });
   }
 

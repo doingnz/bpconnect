@@ -30,6 +30,7 @@ const PRECACHE = [
   './sdk/constants.js',
   './sdk/core/emitter.js',
   './sdk/core/errors.js',
+  './sdk/core/advice.js',
   './sdk/core/crc8.js',
   './sdk/core/crc32-netmf.js',
   './sdk/core/byte-stream.js',

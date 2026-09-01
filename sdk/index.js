@@ -29,7 +29,7 @@ export {
   parseSummaryLine,
 } from './device/bpplus-device.js';
 
-export { BpPlusMeasurement, decodeUint16Base64, unusableReason, alertsOf, parseAlerts, classifyAlert } from './device/measurement.js';
+export { BpPlusMeasurement, decodeUint16Base64, unusableReason, alertsOf, parseAlerts, classifyAlert, minimalXml } from './device/measurement.js';
 
 export {
   BpPlusFeatures,
@@ -74,7 +74,10 @@ export { WebBluetoothTransport, BLE_PROFILES } from './transports/web-bluetooth.
 
 // ── Errors ───────────────────────────────────────────────────────────────────
 
-export { BpPlusError } from './core/errors.js';
+export { BpPlusError, ErrorReason } from './core/errors.js';
+
+// What to tell the person holding the device, as opposed to what to log.
+export { describeError, adviseOn } from './core/advice.js';
 
 // ── Protocol vocabulary ──────────────────────────────────────────────────────
 
@@ -127,7 +130,7 @@ export {
 } from './core/commands.js';
 
 /** SDK version, independent of the application's. */
-export const SDK_VERSION = '1.0.0';
+export const SDK_VERSION = '1.2.1';
 
 /** The Terminal API version this SDK is written against. */
 export const TERMINAL_API_VERSION = '2.4';

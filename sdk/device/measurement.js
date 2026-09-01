@@ -682,3 +682,113 @@ export function alertsOf(result, bpRange = null) {
 
   return [...byMessage.values()];
 }
+
+/**
+ * Elements the minimal XML drops, and why each is safe to lose.
+ *
+ * Dropped wherever they appear:
+ *
+ *   `RawPressureWave`   the cuff waveform for one determination, ~26 kB of it
+ *   `NibpDetailedData`  the module's own working, for support not research
+ *
+ * A drop list, not a keep list, and that is the whole design. Anything a later
+ * firmware adds survives by default — which is what a compact archive of a
+ * format still under development needs. A keep list would silently discard every
+ * element nobody had thought of yet.
+ */
+const DROPPED_ANYWHERE = ['RawPressureWave', 'NibpDetailedData'];
+
+/**
+ * The bulk arrays inside `Result`, and the index arrays that point into them.
+ *
+ * `Result` is 47 kB, of which 42.9 kB is these arrays and 1.2 kB is the 37 values
+ * that matter: SNR, sPR, sPRV, sAI, cSys, cDia, cAIx, cSEVR and the rest of the
+ * derived central result. Keeping all 37 costs 1,180 bytes more than keeping SNR
+ * alone, so they all stay — along with `version` and `algorithm_revision` on the
+ * element itself, which record WHICH algorithm produced them. That is not
+ * recomputable: a later recomputation uses a later revision, and without the
+ * attribute there is nothing to say the two differ.
+ *
+ * The two `*PulsePointsIndexes` go with the waveforms they index into. An index
+ * without its array is a set of offsets into nothing.
+ *
+ * `sAveragePulse` and `cAveragePulse` are kept. They are arrays, but they are
+ * the averaged pulse rather than a full recording — 2.7 kB for the shape every
+ * derived value was computed from, which is the one waveform worth carrying at
+ * that price.
+ *
+ * `infraDiastolicFiltered` and `infraDiastolicBeatStartIdxs` — the pulse
+ * pressure wave recorded below diastolic, and its pulse starts — are on the
+ * list although no file in hand contains them: firmware does not record them
+ * while AOBP is enabled. They are listed now so that the day it does, a reduced
+ * file does not quietly grow by the size of another full rhythm strip. A name
+ * the document does not contain costs nothing, which is what the test below
+ * checks.
+ */
+const DROPPED_FROM_RESULT = [
+  'sBaseLined',
+  'cEstimate',
+  'baEstimate',
+  'sBaseLinedPulsePointsIndexes',
+  'cEstimatePulsePointsIndexes',
+  'infraDiastolicFiltered',
+  'infraDiastolicBeatStartIdxs',
+];
+
+/**
+ * The measurement XML with the bulk recordings removed.
+ *
+ * For somewhere that cannot hold the whole thing — a REDCap text field is
+ * 65,535 bytes and an AOBP result is twice that — and where a truncated document
+ * would be worse than a smaller complete one. Prefer storing the file whole
+ * wherever that is possible; this is the fallback, not the default.
+ *
+ * Measured on a real standing AOBP: 105,247 bytes to 14,353. What survives is
+ * MeasDataLogger entire, every determination's Sys/Dia/Map/Pr with its timestamp
+ * and alert, and the whole derived result bar the waveforms.
+ *
+ * Returns the input unchanged if it cannot be parsed, on the grounds that
+ * handing back something smaller and wrong is the one outcome worth avoiding.
+ *
+ * @param {string} xml
+ * @returns {string}
+ */
+export function minimalXml(xml) {
+  // Both, not just DOMParser. This parses with one and serialises with the
+  // other, so a host that has only the first gets past the guard and throws at
+  // the last line -- turning "this host cannot reduce it, so keep the whole
+  // document" into a lost measurement. Every browser has both; Node has neither
+  // until something supplies them, which is where this was found.
+  if (!xml || typeof DOMParser === 'undefined' || typeof XMLSerializer === 'undefined') {
+    return xml;
+  }
+
+  const doc = new DOMParser().parseFromString(xml, 'text/xml');
+  if (doc.getElementsByTagName('parsererror').length) return xml;
+
+  const remove = element => {
+    if (element && element.parentNode) element.parentNode.removeChild(element);
+  };
+
+  for (const tag of DROPPED_ANYWHERE) {
+    const found = doc.getElementsByTagName(tag);
+    // Backwards: getElementsByTagName is live, and removing from the front
+    // reindexes everything still to be removed.
+    for (let i = found.length - 1; i >= 0; i--) remove(found[i]);
+  }
+
+  // Scoped to Result, so a same-named element elsewhere in the document is left
+  // alone. There is one Result per measurement today; the loop does not assume it.
+  const results = doc.getElementsByTagName('Result');
+  for (let r = 0; r < results.length; r++) {
+    const children = results[r].childNodes;
+    for (let i = children.length - 1; i >= 0; i--) {
+      const child = children[i];
+      if (child.nodeType === 1 && DROPPED_FROM_RESULT.indexOf(child.nodeName) !== -1) {
+        remove(child);
+      }
+    }
+  }
+
+  return new XMLSerializer().serializeToString(doc);
+}

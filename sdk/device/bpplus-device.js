@@ -31,7 +31,7 @@ import { Emitter } from '../core/emitter.js';
 import { Session } from '../core/session.js';
 import { ResponseKind } from '../core/responses.js';
 import * as commands from '../core/commands.js';
-import { BpPlusError } from '../core/errors.js';
+import { BpPlusError, ErrorReason } from '../core/errors.js';
 import {
   AobpDefaults,
   DetailLevel,
@@ -369,6 +369,10 @@ export class BpPlusDevice extends Emitter {
    *          at level 0
    */
   async measure(options = {}) {
+    // Fresh for each measurement: a cancel remembered from the last one would
+    // label the next device-side stop as the operator's own doing.
+    this._cancelRequested = false;
+
     if (this.isMeasuring) {
       throw new BpPlusError(ResultCode.deviceIsBusy, {
         message: 'A measurement is already running.',
@@ -451,6 +455,17 @@ export class BpPlusDevice extends Emitter {
       }
 
       return result;
+    } catch (error) {
+      // Tagged here because there is more than one way for a cancel to arrive.
+      // A cancel during the countdown produces `F 02` with no result block at
+      // all, so the session rejects the request itself and never reaches the
+      // branch above — which is why tagging it there told an operator who had
+      // just pressed Cancel that the BP+ had been stopped by hand. One place,
+      // on the way out, catches every path.
+      if (error && error.code === ResultCode.cancelled && this._cancelRequested) {
+        error.reason = ErrorReason.cancelledByHost;
+      }
+      throw error;
     } finally {
       outcome.cancel();
       this._setState(this.isConnected ? DeviceState.connected : DeviceState.disconnected);
@@ -529,6 +544,11 @@ export class BpPlusDevice extends Emitter {
    * The device answers a cancel with one F 02 and one M 02.
    */
   async cancel() {
+    // Remembered so the measurement can say who stopped it. F 02 is the same
+    // code whether the host sent `c` or somebody pressed the button on the
+    // device, and those want different words: one is the operator's own action,
+    // the other is a thing that happened to them.
+    this._cancelRequested = true;
     await this._session.sendImmediate(commands.cancel());
   }
 
