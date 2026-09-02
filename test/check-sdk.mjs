@@ -6,10 +6,9 @@
  * 1. sdk/ is still the copy sdk/SDK-VERSION.json says it is.
  *
  *    sdk/ is a copy of Uscom/bpplus-js-sdk. An edit made here and nowhere else
- *    is lost the next time the folder is replaced, and invisible until then --
- *    which is not hypothetical: this copy and the one in the UTas REDCap module
- *    drifted apart across seven files while both reported SDK_VERSION 1.0.0, and
- *    nothing showed until they were diffed.
+ *    is lost the next time the folder is replaced, and invisible until then. A
+ *    version number records only what nobody changed, so this checks a hash of
+ *    the folder: two copies can report the same SDK_VERSION and still differ.
  *
  *    The algorithm matches Get-SdkHash in bpplus-redcap's tools/sync-sdk.ps1,
  *    which is what writes the file: every .js under sdk/ sorted by path with an

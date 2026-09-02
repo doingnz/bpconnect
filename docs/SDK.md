@@ -35,7 +35,6 @@ All three are corrected upstream.
 hash of the folder.
 
 **Do not edit `sdk/` in place.** An edit that lives only here is lost the next
-time the folder is replaced, and invisible until then. That is not
-hypothetical -- this copy and the one in the UTas REDCap module drifted apart
-across seven files while both reported `SDK_VERSION 1.0.0`, and nothing showed
-until they were diffed. Change it upstream and re-copy.
+time the folder is replaced, and invisible until then. A version number records
+only what nobody changed, which is why `SDK-VERSION.json` carries a hash of the
+folder as well. Change it upstream and re-copy.
