@@ -11,7 +11,8 @@ It is two things in one repository:
 | | |
 |---|---|
 | **`sdk/`** | A UI-free JavaScript SDK for the BP+ Terminal API. This is what a customer integrates. |
-| **`app/`** | A reference single-page application built on it — Framework7, five tabs, one worked example per SDK feature. |
+| **`app/`** | A reference single-page application built on it — Framework7, six tabs, one worked example per SDK feature. |
+| **`analysis/`** | The reservoir analysis: a UI-free port of the BPplus-Reservoir MATLAB code. A research analysis of a result, shown on a tab that is off by default. |
 
 The boundary is enforced by one rule: **nothing under `sdk/` touches the DOM, a
 UI framework or `localStorage`.** If `app/` could not be deleted while leaving a
@@ -69,7 +70,23 @@ bpconnect/
 │   ├── tab-results.js             Tab 2 — results table and per-reading list
 │   ├── tab-waveform.js            Tab 3 — Chart.js pulse waves and raw pressure
 │   ├── tab-settings.js            Tab 4 — connection, tracing, provisioning
-│   └── tab-firmware.js            Tab 5 — firmware update (hidden by default)
+│   ├── tab-firmware.js            Tab 5 — firmware update (hidden by default)
+│   └── tab-reservoir.js           Tab 6 — reservoir analysis (hidden by default)
+│
+├── analysis/                      ── Reservoir analysis. UI-free. ───────────
+│   ├── index.js                   Public surface
+│   ├── NOTICE.md                  Authors, references and licensing of the original
+│   ├── reservoir.js               bpp_Res2.m: the 89 results, section by section
+│   ├── kreservoir.js              kreservoir_v15.m and BPfitres_v1.m: the reservoir fit
+│   ├── ai-v2.js                   ai_v2.m: augmentation index and Murgo type
+│   ├── matlab.js                  The MATLAB built-ins those depend on, behaviour for behaviour
+│   ├── columns.js                 The resdata.xls columns: labels, units, CSV
+│   └── input.js                   A measurement's values, parsed as MATLAB parses them
+│
+├── test/
+│   ├── check-sdk.mjs              The vendored SDK is what it says, and precached
+│   ├── check-reservoir.mjs        The reservoir analysis against its reference values
+│   └── reservoir/                 Reference values, and the scripts that make them
 │
 ├── css/            app.css, fa-all.css
 ├── js/vendor/      chart.umd.min.js (UMD, loaded as a classic script)
@@ -351,6 +368,7 @@ Not implemented yet (phase 2). The two things most likely to be got wrong:
 | 3 | Pulse-wave charts, the two average pulses, and the raw pressure recordings — one cuff ramp per BP reading, then the suprasystolic channel |
 | 4 | Connection, flow control, tracing; what the browser supports; writing a setting to the device; the debug and trace pane |
 | 5 | Firmware update. Hidden unless switched on in Settings — a service action, not something a clinical user should meet on the way to a measurement |
+| 6 | Reservoir analysis of the latest measurement or of an opened XML file: all 89 values, the four figures, the BP+'s own value alongside where it has one, CSV export. Hidden unless switched on in Settings — see below |
 
 The action button cycles on `device.state`:
 
@@ -358,6 +376,29 @@ The action button cycles on `device.state`:
 disconnected  →[tap]→  connected  →[tap]→  measuring  →[tap]→  connected
 button-connect         button-start        button-stop
 ```
+
+### Reservoir analysis
+
+`analysis/` ports BPplus-Reservoir (`bpp_Res2` beta7, A. D. Hughes and K. H.
+Parker): pulse wave analysis, reservoir–excess pressure and pressure-only wave
+intensity, computed from the average pulses and cuff pressures of a result.
+Authors, references and licensing are in `analysis/NOTICE.md`.
+
+- **It follows the MATLAB, not a textbook.** The numbers depend on MATLAB
+  built-ins — `findpeaks` widths, `fminsearch`'s simplex and stopping rule,
+  `fzero`'s bracket search, a not-a-knot spline — and `analysis/matlab.js`
+  reproduces their behaviour rather than an equivalent algorithm. Rounding,
+  first-of-equal maxima and 1-based sample numbers are kept where a result
+  depends on them.
+- **Sections fail on their own.** The MATLAB script stops at the first error.
+  Here a wave intensity peak that cannot be found costs the wave intensity
+  values and nothing else; the tab says which section failed and why.
+- **It is checked against reference values**, in `test/reservoir/`. Each file
+  records whether it came from MATLAB or from the independent scipy reference;
+  only MATLAB output checks the transcription of the script itself.
+- **Below 6 dB SNR it does not run**, as the MATLAB does not.
+
+---
 
 ---
 
@@ -371,6 +412,7 @@ Owned entirely by `app/settings.js`.
 | `bpflowcontrol` | `hardware` · `none` | `hardware` |
 | `bptrace` | `on` · `off` | `off` |
 | `bpconnrate` | a baud rate | `115200` |
+| `bpreservoir` | `on` · `off` — show the reservoir analysis tab | `off` |
 
 `bluetooth-nus` is a legacy value and maps onto `bluetooth`; one transport now
 handles every bridge profile.
@@ -394,6 +436,7 @@ Simulator mode needs no hardware and is the default on a first visit.
 ```bash
 npm install --no-save jsdom
 node sdk/selftest.js
+node test/check-reservoir.mjs     # no dependencies
 ```
 
 The known answers are values the device itself produces, not values this

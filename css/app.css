@@ -470,3 +470,48 @@ Make navbar transparent
     word-break: break-all;
     font-variant-numeric: tabular-nums;
 }
+
+/* ── Reservoir analysis tab ────────────────────────────────────────────────── */
+.res-block { margin: 12px 0 8px; }
+
+.res-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin: 12px 0 4px;
+}
+
+.res-toolbar .button { flex: 0 0 auto; padding: 0 14px; }
+
+/* The file input is opened by its label, which is styled as the button. */
+.res-open input { display: none; }
+
+.res-placeholder {
+    padding: 28px 16px;
+    text-align: center;
+    color: #aaa;
+    font-size: 13px;
+}
+
+.res-source {
+    font-size: 12px;
+    color: #888;
+    word-break: break-all;
+}
+
+.res-card td.label-cell { white-space: normal; }
+
+/* The resdata.xls column name, under the readable label. */
+.res-header {
+    display: block;
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 10px;
+    color: #aaa;
+}
+
+.res-card .numeric-cell { font-variant-numeric: tabular-nums; }
+.res-unit { font-size: 12px; color: #888; white-space: nowrap; }
+.res-device { font-size: 12px; color: #555; white-space: nowrap; }
+.res-tag { font-size: 10px; color: #aaa; }
+.res-missing { color: #bbb; }
+.res-notes { padding: 4px 16px 24px; }

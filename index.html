@@ -145,6 +145,9 @@
           <a href="#tab3" class="tab-link">
             <i class="fas fa-chart-line fa-lg"></i>
           </a>
+          <a href="#tab6" class="tab-link" id="tab-link-reservoir" style="display:none;">
+            <i class="fas fa-wave-square fa-lg"></i>
+          </a>
           <a href="#tab5" class="tab-link" id="tab-link-firmware" style="display:none;">
             <i class="fas fa-microchip fa-lg"></i>
           </a>
@@ -420,6 +423,81 @@
                 </div>
               </div>
 
+              <!-- ── Tab 6: Reservoir analysis ── see app/tab-reservoir.js ──── -->
+              <div class="tab" id="tab6">
+                <div class="page-content bg-color-white">
+                  <div class="block res-block">
+
+                    <div class="inline-notice inline-notice-warn">
+                      <b>Research analysis, not for diagnosis.</b> These values are
+                      computed on this page from the recording, by a port of
+                      BPplus-Reservoir beta7 (Hughes &amp; Parker). They are not
+                      results of the BP+.
+                    </div>
+
+                    <div class="res-toolbar">
+                      <label class="button button-small res-open">
+                        <input id="res-open" type="file" accept=".xml,text/xml,application/xml">
+                        Open XML file
+                      </label>
+                      <button id="res-export" class="button button-small" type="button" disabled>
+                        Export CSV
+                      </button>
+                    </div>
+
+                    <div id="res-placeholder" class="res-placeholder">
+                      Run a measurement, or open a saved BP+ XML file, to see the reservoir analysis.
+                    </div>
+                  </div>
+
+                  <div id="res-content" style="display:none;">
+                    <div class="block res-block">
+                      <div id="res-source" class="res-source"></div>
+                      <div id="res-status"></div>
+                    </div>
+
+                    <div class="wf-section" id="res-sec-pulses">
+                      <div class="wf-title">
+                        <span class="wf-title-dot" style="background:#2e7d32;"></span>
+                        Pulse traces &nbsp;<span class="wf-legend-ref">| brachial estimate, one line per pulse</span>
+                      </div>
+                      <div class="wf-canvas-wrap wf-tall"><canvas id="res-chart-pulses"></canvas></div>
+                    </div>
+
+                    <div class="wf-section" id="res-sec-aortic">
+                      <div class="wf-title">Aortic pressure, reservoir and excess pressure</div>
+                      <div class="wf-canvas-wrap wf-tall"><canvas id="res-chart-aortic"></canvas></div>
+                    </div>
+
+                    <div class="wf-section" id="res-sec-sevr">
+                      <div class="wf-title">SEVR &nbsp;<span class="wf-legend-ref">| systolic and diastolic pressure-time integrals</span></div>
+                      <div class="wf-canvas-wrap wf-tall"><canvas id="res-chart-sevr"></canvas></div>
+                    </div>
+
+                    <div class="wf-section" id="res-sec-wi">
+                      <div class="wf-title">
+                        <span class="wf-title-dot" style="background:#1565c0;"></span>
+                        Wave intensity, dI &nbsp;<span class="wf-legend-ref">| ● Wf1 &nbsp;● Wb &nbsp;■ Wf2</span>
+                      </div>
+                      <div class="wf-canvas-wrap wf-tall"><canvas id="res-chart-wi"></canvas></div>
+                    </div>
+
+                    <div id="res-tables"></div>
+
+                    <p class="settings-help res-notes">
+                      The small name under each measure is its column in
+                      <code>resdata.xls</code>, and the header of the exported CSV.
+                      <strong>BP+</strong> is the device's own result for the same
+                      quantity, where it reports one, in its own units.<br>
+                      The pressure-time integrals are summed over samples, as
+                      <code>bpp_Res2.m</code> computes them; divide by the sample
+                      rate for mmHg·s. Wave intensity uses excess pressure as a
+                      surrogate for flow velocity, scaled to a peak of 1 m/s.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
               <!-- ── Tab 4: Settings ───────────────────────────────────────── -->
               <div class="tab" id="tab4">
                 <div class="page-content bg-color-white">
@@ -495,6 +573,14 @@
                     <div class="setup-field">
                       <label class="setup-label" for="bpfirmware">Firmware update tab</label>
                       <select id="bpfirmware">
+                        <option value="off">Off</option>
+                        <option value="on">Show</option>
+                      </select>
+                    </div>
+
+                    <div class="setup-field">
+                      <label class="setup-label" for="bpreservoir">Reservoir analysis tab</label>
+                      <select id="bpreservoir">
                         <option value="off">Off</option>
                         <option value="on">Show</option>
                       </select>

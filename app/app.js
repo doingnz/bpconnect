@@ -12,6 +12,10 @@
  *   tab-results.js    reading values out of a result
  *   tab-waveform.js   the waveform arrays
  *   tab-settings.js   choosing a transport, and writing a setting to the device
+ *
+ * tab-reservoir.js runs the reservoir analysis in analysis/ on a result. That
+ * is not an SDK feature: it is a research analysis of the recording, and like
+ * the SDK it knows nothing of the page.
  */
 
 import {
@@ -39,6 +43,7 @@ import {
 } from './measure-setup.js';
 import { initResults, showResults, showSummary, clearResults } from './tab-results.js';
 import { drawWaveforms, clearWaveforms } from './tab-waveform.js';
+import { initReservoirTab, analyseMeasurement, clearReservoir } from './tab-reservoir.js';
 import { initSettingsTab } from './tab-settings.js';
 import { initFirmwareTab, onFirmwareTabShown } from './tab-firmware.js';
 
@@ -244,6 +249,7 @@ async function doMeasure() {
   clearMeasure();
   clearResults();
   clearWaveforms();
+  clearReservoir();
   setSetupEnabled(false);
   setExpectedReadings(expectedReadingCount(options));
   beginMeasure(expectedRestSeconds());
@@ -262,6 +268,7 @@ async function doMeasure() {
     showMeasureResults(result);
     showResults(result);
     drawWaveforms(result);
+    analyseMeasurement(result);
     log(`Measurement complete: ${result.summary}`);
 
     if (!result.crcOk) {
@@ -360,6 +367,7 @@ initLog();
 initMeasure();
 initMeasureSetup();
 initResults();
+initReservoirTab({ log });
 initSettingsTab({
   device,
   confirm: confirmAction,

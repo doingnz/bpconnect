@@ -60,6 +60,16 @@ const PRECACHE = [
   './app/tab-waveform.js',
   './app/tab-settings.js',
   './app/tab-firmware.js',
+  './app/tab-reservoir.js',
+
+  // The reservoir analysis. UI-free; see analysis/NOTICE.md.
+  './analysis/index.js',
+  './analysis/matlab.js',
+  './analysis/ai-v2.js',
+  './analysis/kreservoir.js',
+  './analysis/reservoir.js',
+  './analysis/columns.js',
+  './analysis/input.js',
 
   './assets/uscom-logo.svg',
   './assets/bpplus-logo.svg',

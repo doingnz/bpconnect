@@ -18,6 +18,7 @@ Two halves, and the boundary between them is the point:
 |---|---|
 | **`sdk/`** | Talks to the device. **No DOM, no Framework7, no localStorage.** This is what ships to customers. |
 | **`app/`** | The reference UI. A consumer of `sdk/`, nothing more. Delete it and the SDK still works. |
+| **`analysis/`** | The reservoir analysis — a port of the BPplus-Reservoir MATLAB code. UI-free like `sdk/`, and depends on neither half. |
 
 - **ES modules, no build step.** Edit files and refresh. Each module names what it needs — there is no load order to maintain.
 - **Start here for protocol** — `sdk/core/session.js` (request/response, timeouts, notification routing)
@@ -25,6 +26,7 @@ Two halves, and the boundary between them is the point:
 - **Start here for UI** — `app/app.js` (Framework7 init, the action button, event wiring)
 - **Measurement mode, patient ID, AOBP** — `app/measure-setup.js`
 - **Firmware update** — `sdk/device/firmware-update.js` (protocol), `app/tab-firmware.js` (UI)
+- **Reservoir analysis** — `analysis/reservoir.js` (the calculations), `app/tab-reservoir.js` (UI). Its numbers must agree with the MATLAB original: read `test/reservoir/README.md` before changing one, and `analysis/NOTICE.md` for who wrote it.
 
 ---
 
@@ -43,6 +45,7 @@ Defaults to **Simulator** on first load — no hardware needed.
 
 ```bash
 node sdk/selftest.js           # needs: npm install --no-save jsdom
+node test/check-reservoir.mjs  # the reservoir analysis; no dependencies
 ```
 
 Covers framing, both CRCs, command building, response classification and a full

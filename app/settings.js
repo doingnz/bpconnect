@@ -15,6 +15,7 @@ const KEYS = {
   aobp:        'bpaobp',
   provisioning:'bpprovisioning',
   firmwareTab: 'bpfirmware',
+  reservoirTab:'bpreservoir',
 };
 
 export const ConnectionType = Object.freeze({
@@ -133,6 +134,14 @@ export const settings = {
    */
   get firmwareTabEnabled() { return read(KEYS.firmwareTab, 'off') === 'on'; },
   set firmwareTabEnabled(enabled) { write(KEYS.firmwareTab, enabled ? 'on' : 'off'); },
+
+  /**
+   * Whether the reservoir analysis tab is shown. Off by default: its values
+   * are a research analysis of the recording, not results of the device, and
+   * should not sit next to the ones that are unless someone asked for them.
+   */
+  get reservoirTabEnabled() { return read(KEYS.reservoirTab, 'off') === 'on'; },
+  set reservoirTabEnabled(enabled) { write(KEYS.reservoirTab, enabled ? 'on' : 'off'); },
 };
 
 export { KEYS as SETTING_KEYS };
