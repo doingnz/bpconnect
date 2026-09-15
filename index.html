@@ -803,11 +803,14 @@
 
       // ── SW registration ─────────────────────────────────────────────────────
       if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('./sw.js').then(function (reg) {
+        // updateViaCache 'none': check sw.js past the HTTP cache, which the server
+        // sends no Cache-Control to limit.
+        navigator.serviceWorker.register('./sw.js', { updateViaCache: 'none' }).then(function (reg) {
           swReg = reg;
 
-          // Trigger an update check on every page load
-          reg.update();
+          // Check for a new worker on every page load. On a first visit there is
+          // none running yet to update, and asking throws.
+          if (reg.active) reg.update();
 
           // A new SW has been found and is installing
           reg.addEventListener('updatefound', function () {

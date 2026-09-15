@@ -462,8 +462,16 @@ fails here rather than on the bench.
 
 `sw.js` precaches every file. **Anything added under `sdk/` or `app/` must be
 added to `PRECACHE`**, or the PWA serves a half-updated application offline.
-`CACHE_VERSION` is rewritten by GitHub Actions on push; bump it by hand when
-testing locally, or unregister the worker.
+
+It answers **network first**. Each request is revalidated with the server, a
+304 when nothing changed, and the response is kept; the cache answers when the
+network fails or takes longer than 4 s, and for 10 s after that, so an app
+starting offline does not wait on every file. A deploy therefore shows on the
+next ordinary reload, whether or not `CACHE_VERSION` changed.
+
+`CACHE_VERSION` is rewritten by GitHub Actions on push to main. A changed
+`sw.js` installs a new worker, which waits for **Update now** in the page's
+banner, because a reload drops the connection to the device.
 
 ---
 

@@ -1,11 +1,16 @@
 /**
  * BP+ Connect — Service Worker
  *
- * CACHE_VERSION is replaced on every push to main by GitHub Actions.
- * Changing this constant causes the browser to detect the SW file has changed,
- * download the new SW, install it (caching all assets under the new name),
- * then wait.  The page shows an "Update available" banner; the user clicks
- * "Update now" which posts SKIP_WAITING → the SW activates → page reloads.
+ * Network first, cache when offline. Every request goes to the server, which
+ * answers 304 when a file has not changed, and what comes back is kept. The
+ * cache is used when the network fails, or is slow and a copy exists. A deploy
+ * therefore shows on the next ordinary reload, whatever sw.js says.
+ *
+ * CACHE_VERSION is replaced on every push to main by GitHub Actions. A changed
+ * sw.js installs a new worker, which caches all assets under the new name and
+ * waits. The page shows an "Update available" banner; "Update now" posts
+ * SKIP_WAITING → the worker activates → the page reloads. It waits for the user
+ * because a reload drops the connection to the device.
  */
 
 // ── This line is updated automatically by GitHub Actions on each push: ────────
@@ -87,8 +92,10 @@ const PRECACHE = [
 // ── Install: cache all assets ─────────────────────────────────────────────────
 self.addEventListener('install', (event) => {
   event.waitUntil(
+    // Past the HTTP cache: the server sends no Cache-Control, so the browser
+    // could otherwise hand back a stale copy to cache.
     caches.open(CACHE_NAME)
-      .then((cache) => cache.addAll(PRECACHE))
+      .then((cache) => cache.addAll(PRECACHE.map((url) => new Request(url, { cache: 'reload' }))))
     // Do NOT call skipWaiting() here — we wait for the user to confirm the
     // update via the page banner before activating the new SW.
   );
@@ -107,32 +114,72 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// ── Fetch: cache-first for all assets; network-first for version.json ─────────
-self.addEventListener('fetch', (event) => {
-  // Only handle same-origin requests
-  if (!event.request.url.startsWith(self.location.origin)) return;
+// ── Fetch: network first, the cache when offline ──────────────────────────────
+// Cache-first served the files cached when this worker was installed until
+// sw.js changed, and a deploy that leaves CACHE_VERSION alone never changes it:
+// every ordinary reload after a Ctrl+F5 went back to the old files.
 
-  if (event.request.url.includes('version.json')) {
-    // Network-first: always try to get the latest version info so the page
-    // can detect when a new release has been deployed.
-    event.respondWith(
-      fetch(event.request)
-        .then((response) => {
-          const clone = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
-          return response;
-        })
-        .catch(() => caches.match(event.request))
-    );
-    return;
+// How long to wait for the server before a cached copy will do.
+const NETWORK_TIMEOUT_MS = 4000;
+
+// After the network fails or is too slow, answer from the cache for this long,
+// so an app starting offline does not wait on every file in turn.
+const OFFLINE_BACKOFF_MS = 10000;
+let offlineUntil = 0;
+
+self.addEventListener('fetch', (event) => {
+  const { request } = event;
+  if (request.method !== 'GET' || !request.url.startsWith(self.location.origin)) return;
+  event.respondWith(networkFirst(request));
+});
+
+async function networkFirst(request) {
+  const cache = await caches.open(CACHE_NAME);
+
+  // One entry per file: version.json is asked for with a cache-busting query.
+  const key = new URL(request.url);
+  key.search = '';
+  const cached = () => cache.match(key.href);
+
+  if (Date.now() < offlineUntil) {
+    const copy = await cached();
+    if (copy) return copy;
   }
 
-  // Cache-first for everything else (fast, offline-capable)
-  event.respondWith(
-    caches.match(event.request)
-      .then((cached) => cached || fetch(event.request))
-  );
-});
+  // Revalidate past the HTTP cache. A navigation cannot be copied with options,
+  // so it is rebuilt from its URL.
+  const revalidate = request.mode === 'navigate'
+    ? new Request(request.url, { cache: 'no-cache', credentials: 'same-origin' })
+    : new Request(request, { cache: 'no-cache' });
+
+  let answered = false;
+  const network = fetch(revalidate).then((response) => {
+    answered = true;
+    offlineUntil = 0;
+    if (response.status === 200) cache.put(key.href, response.clone());
+    return response;
+  }, (error) => {
+    answered = true;
+    offlineUntil = Date.now() + OFFLINE_BACKOFF_MS;
+    throw error;
+  });
+
+  // A slow network gets the cached copy if there is one; with none, keep waiting.
+  const slow = new Promise((resolve) => setTimeout(resolve, NETWORK_TIMEOUT_MS))
+    .then(async () => {
+      if (answered) return network;
+      const copy = await cached();
+      if (!copy) return network;
+      offlineUntil = Date.now() + OFFLINE_BACKOFF_MS;
+      return copy;
+    });
+
+  try {
+    return await Promise.race([network, slow]);
+  } catch {
+    return (await cached()) || Response.error();
+  }
+}
 
 // ── Message: SKIP_WAITING sent by the page when user confirms update ──────────
 self.addEventListener('message', (event) => {
