@@ -509,6 +509,15 @@ Make navbar transparent
 
 .res-option.disabled { opacity: 0.45; pointer-events: none; }
 
+/* The pulse traces caption changes with the brachial mode. One line, cut short
+   with an ellipsis where there is no room, so toggling never moves the plot. */
+#res-sec-pulses .wf-legend-ref {
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
 .res-placeholder {
     padding: 28px 16px;
     text-align: center;

@@ -366,10 +366,12 @@ function renderCharts(result) {
   if (s.pulses && s.pulses.traces.length) {
     const legend = $('res-pulses-legend');
     if (legend) {
+      // Short, and held to one line, so changing the mode does not move the plot.
       legend.textContent = (s.pulses.source === 'sBaseLined'
-        ? `| sBaseLined, scaled as the brachial beat${s.pulses.normalised ? ' (normalised)' : ''}, one line per selected pulse`
-        : '| baEstimate, one line per selected pulse') +
-        (s.brachial ? '; dark line, the brachial average beat the values come from' : '');
+        ? `| sBaseLined pulses, scaled${s.pulses.normalised ? ' (normalised)' : ''}`
+        : '| baEstimate pulses') +
+        (s.brachial ? '; dark line: average beat' : '');
+      legend.title = legend.textContent.slice(2);
     }
     drawPulses(s.pulses, s.brachial);
   }
