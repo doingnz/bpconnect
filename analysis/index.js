@@ -1,10 +1,12 @@
 /**
  * Reservoir analysis of a BP+ measurement — a port of BPplus-Reservoir.
  *
- * UI-free: no DOM, no Framework7, no localStorage. It depends on nothing in
- * sdk/ and could be lifted out with it. See NOTICE.md for the authors,
- * references and licensing.
+ * UI-free: no DOM, no framework, no localStorage, no dependencies. See
+ * NOTICE.md for the authors, references and licensing of the original.
  */
+
+/** This port's version. package.json must agree; test/run.mjs checks. */
+export const RESERVOIR_JS_VERSION = '0.1.1';
 
 export {
   analyseReservoir, qualityFromSnr, ANALYSIS_VERSION, KRESERVOIR_VERSION, MIN_SNR,

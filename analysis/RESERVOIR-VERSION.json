@@ -1,0 +1,28 @@
+{
+    "$comment": [
+        "Provenance for the copy of bpplus-js-reservoir in this folder.",
+        "",
+        "analysis/ is a COPY of reservoir/ at the tag below. It is changed in that",
+        "repository and copied here with tools/sync-reservoir.mjs, never edited here:",
+        "test/check-reservoir.mjs fails when the folder no longer hashes to",
+        "vendored.treeSha256.",
+        "",
+        "vectors is the bpplus-reservoir-vectors tag that release was checked against;",
+        "CI checks this copy against the same tag."
+    ],
+    "version": "0.1.1",
+    "source": {
+        "repository": "https://github.com/doingnz/bpplus-js-reservoir.git",
+        "path": "reservoir/",
+        "ref": "v0.1.1",
+        "commit": "4c7d20253036e44534ebd8f4a1157129ce9cd2fd"
+    },
+    "vectors": {
+        "repository": "https://github.com/doingnz/bpplus-reservoir-vectors",
+        "ref": "v0.1.0"
+    },
+    "vendored": {
+        "on": "2026-09-15",
+        "treeSha256": "ac350e68738ba850e7c589e7f9b81920adf94f769b6a94bffbda5f69b61900c1"
+    }
+}

@@ -1,3 +1,6 @@
 .vs/
 *.user
 node_modules/
+
+# bpplus-reservoir-vectors, checked out for test/check-reservoir.mjs
+vectors/

@@ -1,18 +1,29 @@
 /**
  * Checks on the reservoir analysis in analysis/. No dependencies, no browser.
  *
- *   node test/check-reservoir.mjs [measurement.xml ...]
+ *   node test/check-reservoir.mjs
  *
- * 1. The MATLAB functions it ports give known answers — values that follow
- *    from the mathematics, not values this implementation happened to compute.
+ * analysis/ is a copy of doingnz/bpplus-js-reservoir, recorded in
+ * analysis/RESERVOIR-VERSION.json and replaced with tools/sync-reservoir.mjs.
+ * The port's own tests live in that repository; these check the copy here.
  *
- * 2. The simulator's recorded measurement analyses completely, and every file
- *    named on the command line (or found in BPPLUS_RESERVOIR_FIXTURES) is run
- *    too.
+ * 1. analysis/ is still the copy RESERVOIR-VERSION.json says it is. An edit
+ *    made here is lost at the next sync and invisible until then.
  *
- * 3. Where test/reservoir/reference/<name>.json exists for a measurement, all
- *    89 results agree with it. See test/reservoir/README.md for where those
- *    files come from, and which ones came from MATLAB.
+ * 2. Every analysis file the app loads is in the service worker's PRECACHE,
+ *    or the reservoir tab does not load offline.
+ *
+ * 3. The simulator's recorded measurement analyses completely: it is what the
+ *    tab shows on every page that has never been near a device.
+ *
+ * 4. The copy agrees with MATLAB, in all 89 columns, on every vector of the
+ *    bpplus-reservoir-vectors tag its release was checked against. CI checks
+ *    that tag out into vectors/. Locally, clone it there:
+ *
+ *      git clone --branch <vectors.ref> https://github.com/doingnz/bpplus-reservoir-vectors vectors
+ *
+ *    or point BPPLUS_RESERVOIR_VECTORS at a checkout. Without vectors the run
+ *    fails, because a check that compared nothing is not a pass.
  */
 
 import fs from 'node:fs';
@@ -20,14 +31,14 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { analyseReservoir, reservoirInput, COLUMNS } from '../analysis/index.js';
-import {
-  sgolayFirstDerivative, spline, fzero, fminsearch, findpeaks, round,
-} from '../analysis/matlab.js';
+import { round } from '../analysis/matlab.js';
 import { MEASUREMENT_XML } from '../sdk/transports/simulator-data.js';
 import { xmlSource } from './reservoir/xml-source.mjs';
+import { folderHash, jsFiles } from './reservoir/folder-hash.mjs';
 
-const here = path.dirname(fileURLToPath(import.meta.url));
-const referenceDir = path.join(here, 'reservoir', 'reference');
+const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
+const analysisDir = path.join(root, 'analysis');
+const record = JSON.parse(fs.readFileSync(path.join(analysisDir, 'RESERVOIR-VERSION.json'), 'utf8'));
 
 let failures = 0;
 
@@ -40,121 +51,89 @@ function close(a, b, tolerance) {
   return Math.abs(a - b) <= tolerance * Math.max(1, Math.abs(a), Math.abs(b));
 }
 
-// ── 1. Known answers ─────────────────────────────────────────────────────────
+// ── 1. The copy ──────────────────────────────────────────────────────────────
 
 {
-  // The published 9-point cubic first-derivative Savitzky-Golay filter.
-  const expected = [86, -142, -193, -126, 0, 126, 193, 142, -86].map(v => v / 1188);
-  const g = sgolayFirstDerivative(3, 9);
-  check('sgolay(3,9) first derivative', g.every((v, i) => close(v, expected[i], 1e-12)));
+  const actual = folderHash(analysisDir);
+  console.log(`analysis/ is bpplus-js-reservoir ${record.version} (${record.source.ref}, ${record.source.commit.slice(0, 7)})`);
+  check('analysis/ has not been edited in place', actual === record.vendored?.treeSha256,
+    `recorded ${record.vendored?.treeSha256}, actual ${actual}\n` +
+    '        Change it in doingnz/bpplus-js-reservoir and run tools/sync-reservoir.mjs, not here.');
 }
+
+// ── 2. Precached ─────────────────────────────────────────────────────────────
 
 {
-  // A not-a-knot cubic spline reproduces any cubic exactly, at any spacing.
-  const f = x => 0.5 * x ** 3 - 2 * x ** 2 + x - 7;
-  const x = [1, 2, 3, 10, 11, 12, 15, 16];
-  const q = [4, 5.5, 7, 9, 13.2, 0, 17];
-  const got = spline(x, x.map(f), q);
-  check('spline is exact on a cubic', got.every((v, i) => close(v, f(q[i]), 1e-9)));
+  const sw = fs.readFileSync(path.join(root, 'sw.js'), 'utf8');
+  const listed = new Set([...sw.matchAll(/'\.\/analysis\/([^']+)'/g)].map(m => m[1]));
+  const files = jsFiles(analysisDir);
+  const missing = files.filter(f => !listed.has(f));
+  const stale = [...listed].filter(f => !files.includes(f));
+  check(`all ${files.length} analysis files are precached`, missing.length === 0,
+    'missing from PRECACHE in sw.js: ' + missing.map(f => 'analysis/' + f).join(', '));
+  check('no precached analysis file has gone', stale.length === 0,
+    'listed in sw.js but not in analysis/: ' + stale.map(f => 'analysis/' + f).join(', '));
 }
+
+// ── 3. The simulator ─────────────────────────────────────────────────────────
 
 {
-  const root = fzero(x => Math.cos(x) - x, 1, 1e-16);
-  check('fzero finds cos(x) = x', close(root, 0.7390851332151607, 1e-14), String(root));
-}
-
-{
-  const found = fminsearch(x => (x - 3) ** 2 + 1, 1, 1e-6);
-  check('fminsearch finds a quadratic minimum', close(found.x, 3, 1e-5) && found.exitflag === 1, String(found.x));
-}
-
-{
-  // Half-prominence width of a triangle is half its base.
-  const y = [0, 0, 1, 2, 3, 4, 3, 2, 1, 0, 0];
-  const p = findpeaks(y);
-  check('findpeaks locates a triangle', p.locs.length === 1 && p.locs[0] === 6);
-  check('findpeaks half-prominence width', close(p.widths[0], 4, 1e-12), String(p.widths[0]));
-
-  // A plateau is one peak, at its first sample; the ends are never peaks.
-  const flat = findpeaks([5, 1, 3, 3, 3, 1, 2, 0, 9]);
-  check('findpeaks plateau and ends', flat.locs.join() === '3,7', flat.locs.join());
-
-  const descending = findpeaks([0, 2, 0, 5, 0, 3, 0], { nPeaks: 1, sortStr: 'descend' });
-  check('findpeaks SortStr descend', descending.locs[0] === 4);
-
-  const tall = findpeaks([0, 2, 0, 5, 0, 3, 0], { minPeakHeight: 2 });
-  check('findpeaks MinPeakHeight is strict', tall.locs.join() === '4,6', tall.locs.join());
-}
-
-check('round sends halves away from zero', round(2.5) === 3 && round(-2.5) === -3);
-
-// ── 2 and 3. Measurements ────────────────────────────────────────────────────
-
-const measurements = [{ name: 'simulator', xml: MEASUREMENT_XML, requireComplete: true }];
-
-const fixtureDir = process.env.BPPLUS_RESERVOIR_FIXTURES;
-if (fixtureDir && fs.existsSync(fixtureDir)) {
-  for (const file of fs.readdirSync(fixtureDir).filter(f => f.endsWith('.xml')).sort()) {
-    measurements.push({ name: path.basename(file, '.xml'), xml: fs.readFileSync(path.join(fixtureDir, file), 'utf8') });
-  }
-}
-for (const file of process.argv.slice(2)) {
-  measurements.push({ name: path.basename(file, '.xml'), xml: fs.readFileSync(file, 'utf8') });
-}
-
-for (const m of measurements) {
-  const source = xmlSource(m.xml);
-  if (!source) {
-    console.log(`skip  ${m.name}: not a BPplus result`);
-    continue;
-  }
-
-  const input = reservoirInput(source, { file: `${m.name}.xml` });
+  const input = reservoirInput(xmlSource(MEASUREMENT_XML), { file: 'simulator.xml' });
   const result = analyseReservoir(input);
-  // The reference values are beta7's, so they are compared with beta7's behaviour.
-  const asBeta7 = analyseReservoir(input, { compatibility: 'beta7' });
-
-  if (m.requireComplete) {
-    check(`${m.name}: analysed`, result.processed, result.reason || '');
-    check(`${m.name}: every section computed`, result.errors.length === 0,
-      result.errors.map(e => `${e.section}: ${e.message}`).join('; '));
-
+  check('simulator: analysed', result.processed, result.reason || '');
+  check('simulator: every section computed', result.errors.length === 0,
+    result.errors.map(e => `${e.section}: ${e.message}`).join('; '));
+  if (result.processed) {
     const v = result.values;
-    check(`${m.name}: diastolic duration is the beat less the ejection duration`,
-      close(v.re_aodd, 60 / v.re_hr - v.re_ao_ed, 1e-12), String(v.re_aodd));
-    check(`${m.name}: SEVR figure ends systole where the SEVR value does`,
-      result.series.sevr?.systoleEnd === round(v.re_ao_ed * v.re_sam_rate),
-      `${result.series.sevr?.systoleEnd} vs ${round(v.re_ao_ed * v.re_sam_rate)}`);
-    check(`${m.name}: pulse traces are the selected pulses`,
-      result.series.pulses?.numbers.join() === input.sSelectedPulseIndexes.map(p => p + 1).join(),
-      result.series.pulses?.numbers.join());
+    check('simulator: diastolic duration is the beat less the ejection duration',
+      close(v.re_aodd, 60 / v.re_hr - v.re_ao_ed, 1e-12));
+    check('simulator: SEVR figure ends systole where SEVR does',
+      result.series.sevr?.systoleEnd === round(v.re_ao_ed * v.re_sam_rate));
+    check('simulator: pulse traces are the selected pulses',
+      result.series.pulses?.numbers.join() === input.sSelectedPulseIndexes.map(p => p + 1).join());
+  }
+}
+
+// ── 4. The vectors ───────────────────────────────────────────────────────────
+
+{
+  const vectorsDir = process.env.BPPLUS_RESERVOIR_VECTORS || path.join(root, 'vectors');
+  const manifestFile = path.join(vectorsDir, 'manifest.json');
+
+  if (!fs.existsSync(manifestFile)) {
+    check(`test vectors ${record.vectors.ref} are present`, false,
+      `no manifest.json in ${vectorsDir}\n        git clone --branch ${record.vectors.ref} ${record.vectors.repository} vectors`);
   } else {
-    const note = !result.processed
-      ? result.reason
-      : result.errors.map(e => `${e.section}: ${e.message}`).join('; ');
-    console.log(`info  ${m.name}: ${result.processed ? 'analysed' : 'not analysed'}${note ? ' — ' + note : ''}`);
-  }
+    const manifest = JSON.parse(fs.readFileSync(manifestFile, 'utf8'));
+    console.log(`\n${manifest.vectors.length} vectors from ${vectorsDir} (expected ${record.vectors.ref})`);
 
-  const referenceFile = path.join(referenceDir, `${m.name}.json`);
-  if (!fs.existsSync(referenceFile)) continue;
+    let compared = 0;
+    for (const vector of manifest.vectors) {
+      const source = xmlSource(fs.readFileSync(path.join(vectorsDir, vector.xml), 'utf8'));
+      if (!source) {
+        console.log(`skip  ${vector.name}: ${vector.format} XML; the analysis reads BP+ XML only`);
+        continue;
+      }
+      const expected = JSON.parse(fs.readFileSync(path.join(vectorsDir, vector.expected.beta7), 'utf8'));
+      const result = analyseReservoir(reservoirInput(source, { file: path.basename(vector.xml) }),
+        { compatibility: 'beta7' });
 
-  const reference = JSON.parse(fs.readFileSync(referenceFile, 'utf8'));
-  const mismatches = [];
-  for (const column of COLUMNS) {
-    if (column.header === 're_file') continue;
-    // A column the reference lacks is a failure, not a pass: otherwise a
-    // reference that lost columns would check less and still say it agreed.
-    if (!(column.header in reference.values)) {
-      mismatches.push(`${column.header}: missing from the reference`);
-      continue;
+      const mismatches = [];
+      for (const column of COLUMNS) {
+        if (column.header === 're_file') continue;
+        if (!(column.header in expected.values)) {
+          mismatches.push(`${column.header}: missing from the expected values`);
+          continue;
+        }
+        const want = expected.values[column.header];
+        const got = result.values[column.header];
+        if (!agrees(got, want, expected.tolerance ?? 1e-6)) mismatches.push(`${column.header}: got ${got}, expected ${want}`);
+      }
+      compared++;
+      check(`${vector.name}: agrees with ${expected.source}`, mismatches.length === 0, mismatches.join('\n        '));
     }
-    const want = reference.values[column.header];
-    const got = asBeta7.values[column.header];
-    if (!agrees(got, want, reference.tolerance ?? 1e-6)) {
-      mismatches.push(`${column.header}: got ${got}, reference ${want}`);
-    }
+    check('at least one vector was compared', compared > 0);
   }
-  check(`${m.name}: agrees with ${reference.source}`, mismatches.length === 0, mismatches.join('\n        '));
 }
 
 function agrees(got, want, tolerance) {

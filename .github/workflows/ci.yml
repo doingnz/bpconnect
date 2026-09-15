@@ -25,8 +25,19 @@ jobs:
 
       - run: node test/check-sdk.mjs
 
-      # The reservoir analysis against its reference values -- see
-      # test/reservoir/README.md for where those came from.
+      # analysis/ is a copy of bpplus-js-reservoir. Check it is still that copy,
+      # and that it agrees with MATLAB on the vectors its release was checked
+      # against -- the tag analysis/RESERVOIR-VERSION.json names.
+      - name: Which test vectors
+        id: vectors
+        run: echo "ref=$(node -p "require('./analysis/RESERVOIR-VERSION.json').vectors.ref")" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v4
+        with:
+          repository: doingnz/bpplus-reservoir-vectors
+          ref: ${{ steps.vectors.outputs.ref }}
+          path: vectors
+
       - run: node test/check-reservoir.mjs
 
       - name: Every JavaScript file parses

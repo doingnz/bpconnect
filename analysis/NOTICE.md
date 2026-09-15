@@ -20,8 +20,9 @@ and code suggestions to the original.
 ## Licensing
 
 The MATLAB original is distributed under the GNU General Public License,
-version 3. This port is included in BP+ Connect with the permission of its
-authors.
+version 3 or later, and so is this port. The original's authors have been
+asked to relicense it under the MIT licence; if they agree, this port will
+follow.
 
 ## References
 
@@ -58,39 +59,43 @@ Pulse wave analysis:
 
 ## Where this port departs from beta7
 
-Defects in beta7 are corrected, each listed in `CORRECTIONS` in `reservoir.js`
-and shown on the tab. `analyseReservoir(input, { compatibility: 'beta7' })`
-reproduces the original exactly.
+Defects in beta7 that change a value or a figure are corrected here, each
+listed in `CORRECTIONS` in `reservoir.js` so a user interface can show them, and
+each reported upstream. `analyseReservoir(input, { compatibility: 'beta7' })`
+reproduces the original, with one exception: the diastolic R² is computed only
+when more than 10 samples remain, as proposed in adh30/BPplus-Reservoir#45.
 
 - **Diastolic duration** (`re_aodd`) is 60/HR less the ejection duration. beta7
-  subtracts the end-systolic pressure divided by 1000.
+  subtracts the end-systolic pressure divided by 1000 (adh30/BPplus-Reservoir#25).
 - **The SEVR figure** ends systole at the ejection duration, where the SEVR
   value does. beta7 reuses a variable the wave intensity section has
   overwritten, so its figure ends systole at the minimum of that section's
-  derivative instead.
+  derivative instead (adh30/BPplus-Reservoir#27).
 - **The pulse traces figure** shows the pulses in `sSelectedPulseIndexes`.
   beta7 draws the first N−1 pulses of the recording, N being the number
-  selected, so rejected pulses can appear and selected ones be missing.
+  selected, so rejected pulses can appear and selected ones be missing
+  (adh30/BPplus-Reservoir#28).
 - **The T1 label on the SEVR figure** is placed at the inflection sample.
   beta7 indexes the beat with `ao_Ti*samplerate`, which is `ti/fs*fs` and not
   always an integer in floating point, so on some recordings — at 200 Hz, an
   inflection at sample 7, 14, 28 or 29, among others — it stops with "Array
-  indices must be positive integers" before writing any results.
+  indices must be positive integers" before writing any results (adh30/BPplus-Reservoir#30).
 
-Behaviour kept as beta7 has it, because changing it changes results that are
-the original authors' to define:
+Behaviour kept as beta7 has it — reported upstream, but not changed here,
+because changing it changes results that are the original authors' to define:
 
 - The beat is cut after its last falling sample before the reservoir fit, but
   the fit's time axis spans the uncut beat, so its sample interval is slightly
   longer than 1/fs. The ejection duration, rate constants, SEVR split and Ew
-  inherit this.
+  inherit this (adh30/BPplus-Reservoir#26).
 - The pressure-time integrals (`re_ao_tti`, `re_ao_dti`) are summed over
-  samples, not seconds. The tab labels them mmHg·sample.
+  samples, not seconds, and leave out one interval. Interfaces should label
+  them mmHg·sample (adh30/BPplus-Reservoir#33).
 - The time of Wf2 (`re_wf2t`) is one sample later than the peak it reports:
-  the search window's offset is added to a 1-based position.
+  the search window's offset is added to a 1-based position (adh30/BPplus-Reservoir#32).
 
 ## Status
 
 A research analysis, not a result of the BP+ and not for diagnosis. Values are
 checked against the MATLAB original run on the same measurements — see
-`test/reservoir/README.md`.
+https://github.com/doingnz/bpplus-reservoir-vectors.

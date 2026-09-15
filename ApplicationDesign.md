@@ -12,7 +12,7 @@ It is two things in one repository:
 |---|---|
 | **`sdk/`** | A UI-free JavaScript SDK for the BP+ Terminal API. This is what a customer integrates. |
 | **`app/`** | A reference single-page application built on it — Framework7, six tabs, one worked example per SDK feature. |
-| **`analysis/`** | The reservoir analysis: a UI-free port of the BPplus-Reservoir MATLAB code. A research analysis of a result, shown on a tab that is off by default. |
+| **`analysis/`** | The reservoir analysis: a UI-free port of the BPplus-Reservoir MATLAB code, copied from [bpplus-js-reservoir](https://github.com/doingnz/bpplus-js-reservoir). A research analysis of a result, shown on a tab that is off by default. |
 
 The boundary is enforced by one rule: **nothing under `sdk/` touches the DOM, a
 UI framework or `localStorage`.** If `app/` could not be deleted while leaving a
@@ -73,7 +73,8 @@ bpconnect/
 │   ├── tab-firmware.js            Tab 5 — firmware update (hidden by default)
 │   └── tab-reservoir.js           Tab 6 — reservoir analysis (hidden by default)
 │
-├── analysis/                      ── Reservoir analysis. UI-free. ───────────
+├── analysis/                      ── Reservoir analysis. A copy. ────────────
+│   ├── RESERVOIR-VERSION.json     Which bpplus-js-reservoir release, and its hash
 │   ├── index.js                   Public surface
 │   ├── NOTICE.md                  Authors, references and licensing of the original
 │   ├── reservoir.js               bpp_Res2.m: the 89 results, section by section
@@ -85,8 +86,11 @@ bpconnect/
 │
 ├── test/
 │   ├── check-sdk.mjs              The vendored SDK is what it says, and precached
-│   ├── check-reservoir.mjs        The reservoir analysis against its reference values
-│   └── reservoir/                 Reference values, and the scripts that make them
+│   ├── check-reservoir.mjs        The analysis copy: unedited, precached, and agreeing with MATLAB
+│   └── reservoir/                 Its helpers: the XML reader and the folder hash
+│
+├── tools/
+│   └── sync-reservoir.mjs         Re-copy analysis/ from a bpplus-js-reservoir tag
 │
 ├── css/            app.css, fa-all.css
 ├── js/vendor/      chart.umd.min.js (UMD, loaded as a classic script)
@@ -393,9 +397,11 @@ Authors, references and licensing are in `analysis/NOTICE.md`.
 - **Sections fail on their own.** The MATLAB script stops at the first error.
   Here a wave intensity peak that cannot be found costs the wave intensity
   values and nothing else; the tab says which section failed and why.
-- **It is checked against reference values**, in `test/reservoir/`. Each file
-  records whether it came from MATLAB or from the independent scipy reference;
-  only MATLAB output checks the transcription of the script itself.
+- **It is a copy.** `analysis/` is bpplus-js-reservoir at the tag
+  `analysis/RESERVOIR-VERSION.json` records, changed in that repository and
+  re-copied with `tools/sync-reservoir.mjs`. Each release is checked against
+  MATLAB running `bpp_Res2.m` itself, on the recordings in
+  bpplus-reservoir-vectors; CI checks this copy against the same vectors tag.
 - **Below 6 dB SNR it does not run**, as the MATLAB does not.
 
 ---
@@ -436,7 +442,7 @@ Simulator mode needs no hardware and is the default on a first visit.
 ```bash
 npm install --no-save jsdom
 node sdk/selftest.js
-node test/check-reservoir.mjs     # no dependencies
+node test/check-reservoir.mjs     # needs vectors/: see the file
 ```
 
 The known answers are values the device itself produces, not values this

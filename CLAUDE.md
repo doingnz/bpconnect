@@ -18,7 +18,7 @@ Two halves, and the boundary between them is the point:
 |---|---|
 | **`sdk/`** | Talks to the device. **No DOM, no Framework7, no localStorage.** This is what ships to customers. |
 | **`app/`** | The reference UI. A consumer of `sdk/`, nothing more. Delete it and the SDK still works. |
-| **`analysis/`** | The reservoir analysis — a port of the BPplus-Reservoir MATLAB code. UI-free like `sdk/`, and depends on neither half. |
+| **`analysis/`** | The reservoir analysis — a copy of [bpplus-js-reservoir](https://github.com/doingnz/bpplus-js-reservoir), a port of the BPplus-Reservoir MATLAB code. UI-free like `sdk/`, depends on neither half, and like `sdk/` is changed upstream and re-copied (`tools/sync-reservoir.mjs`), never edited here. |
 
 - **ES modules, no build step.** Edit files and refresh. Each module names what it needs — there is no load order to maintain.
 - **Start here for protocol** — `sdk/core/session.js` (request/response, timeouts, notification routing)
@@ -26,7 +26,7 @@ Two halves, and the boundary between them is the point:
 - **Start here for UI** — `app/app.js` (Framework7 init, the action button, event wiring)
 - **Measurement mode, patient ID, AOBP** — `app/measure-setup.js`
 - **Firmware update** — `sdk/device/firmware-update.js` (protocol), `app/tab-firmware.js` (UI)
-- **Reservoir analysis** — `analysis/reservoir.js` (the calculations), `app/tab-reservoir.js` (UI). Its numbers must agree with the MATLAB original: read `test/reservoir/README.md` before changing one, and `analysis/NOTICE.md` for who wrote it.
+- **Reservoir analysis** — `app/tab-reservoir.js` (UI). The calculations in `analysis/` are a copy: change them in doingnz/bpplus-js-reservoir, where they are checked against MATLAB's own output on doingnz/bpplus-reservoir-vectors, then re-copy. `analysis/NOTICE.md` says who wrote the original.
 
 ---
 
@@ -45,7 +45,7 @@ Defaults to **Simulator** on first load — no hardware needed.
 
 ```bash
 node sdk/selftest.js           # needs: npm install --no-save jsdom
-node test/check-reservoir.mjs  # the reservoir analysis; no dependencies
+node test/check-reservoir.mjs  # the copy in analysis/; needs vectors/ (see the file)
 ```
 
 Covers framing, both CRCs, command building, response classification and a full
@@ -121,6 +121,7 @@ device does, not which internal build it was observed on.
 | `css/fa-all.css` | Font Awesome CSS — regenerate or replace as a unit |
 | `js/vendor/` | Chart.js UMD build |
 | `sdk/transports/simulator-data.js` | A recorded measurement, kept verbatim |
+| `analysis/` | A copy of bpplus-js-reservoir — change it there and re-copy with `tools/sync-reservoir.mjs` |
 
 ---
 
