@@ -16,6 +16,8 @@ const KEYS = {
   provisioning:'bpprovisioning',
   firmwareTab: 'bpfirmware',
   reservoirTab:'bpreservoir',
+  reservoirBrachial: 'bpresbrachial',
+  reservoirNormalise: 'bpresnormalise',
 };
 
 export const ConnectionType = Object.freeze({
@@ -142,6 +144,22 @@ export const settings = {
    */
   get reservoirTabEnabled() { return read(KEYS.reservoirTab, 'off') === 'on'; },
   set reservoirTabEnabled(enabled) { write(KEYS.reservoirTab, enabled ? 'on' : 'off'); },
+
+  /**
+   * Where the reservoir tab takes the brachial beat and the pulse traces from:
+   * 'sBaseLined' (sAveragePulse scaled to the cuff pressures, and sBaseLined
+   * scaled the same way) or 'baEstimate'. See BRACHIAL_SOURCES in analysis/.
+   */
+  get reservoirBrachial() {
+    return read(KEYS.reservoirBrachial, 'sBaseLined') === 'baEstimate' ? 'baEstimate' : 'sBaseLined';
+  },
+  set reservoirBrachial(source) {
+    write(KEYS.reservoirBrachial, source === 'baEstimate' ? 'baEstimate' : 'sBaseLined');
+  },
+
+  /** Whether sAveragePulse is normalised to 0–1 before it is scaled. Off, as in beta7. */
+  get reservoirNormalise() { return read(KEYS.reservoirNormalise, 'off') === 'on'; },
+  set reservoirNormalise(enabled) { write(KEYS.reservoirNormalise, enabled ? 'on' : 'off'); },
 };
 
 export { KEYS as SETTING_KEYS };

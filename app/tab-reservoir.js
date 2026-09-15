@@ -9,6 +9,10 @@
  * Off by default, behind a switch in Settings. These are a research analysis of
  * the recording, not results of the device.
  *
+ * A switch on the tab chooses where the brachial beat and the pulse traces come
+ * from, and a checkbox whether sAveragePulse is normalised first; see
+ * BRACHIAL_SOURCES in analysis/reservoir.js.
+ *
  * Chart.js is the global the waveform tab also uses. The one plugin registered
  * here draws the reference lines and labelled markers over these charts.
  */
@@ -45,6 +49,7 @@ const charts = {};
 
 let log = () => {};
 let pending = null;   // {measurement, file}: waiting for the tab to be switched on
+let shown = null;     // {measurement, file}: on show, analysed again when an option changes
 let current = null;   // {result, device, file} or {failure}
 
 // ── Plugin: reference lines, region labels and labelled markers ─────────────
@@ -142,6 +147,27 @@ export function initReservoirTab(options = {}) {
 
   $('res-export')?.addEventListener('click', exportCsv);
 
+  // Where the brachial beat and the pulse traces come from. A change analyses
+  // whatever is on show again.
+  const brachial = $('res-brachial');
+  if (brachial) {
+    brachial.checked = settings.reservoirBrachial === 'baEstimate';
+    brachial.addEventListener('change', () => {
+      settings.reservoirBrachial = brachial.checked ? 'baEstimate' : 'sBaseLined';
+      applyOptions();
+      rerun();
+    });
+  }
+  const normalise = $('res-normalise');
+  if (normalise) {
+    normalise.checked = settings.reservoirNormalise;
+    normalise.addEventListener('change', () => {
+      settings.reservoirNormalise = normalise.checked;
+      rerun();
+    });
+  }
+
+  applyOptions();
   applyVisibility();
   render();
 }
@@ -161,6 +187,7 @@ export function analyseMeasurement(measurement, { file } = {}) {
 /** Forget the last analysis: a new measurement is starting. */
 export function clearReservoir() {
   pending = null;
+  shown = null;
   current = null;
   render();
 }
@@ -170,10 +197,14 @@ export function clearReservoir() {
 function run() {
   const { measurement, file } = pending;
   pending = null;
+  shown = { measurement, file };
 
   try {
     const input = reservoirInput(measurement, { file });
-    const result = analyseReservoir(input);
+    const result = analyseReservoir(input, {
+      brachial: settings.reservoirBrachial,
+      normalise: settings.reservoirNormalise,
+    });
     current = { result, device: deviceValues(measurement, DEVICE_TAGS), file: input.file };
 
     if (!result.processed) log(`Reservoir analysis: ${result.reason}`, 'warn');
@@ -186,17 +217,26 @@ function run() {
   render();
 }
 
+/** Analyse what is on show again, with the options as they now are. */
+function rerun() {
+  if (!shown) return;
+  pending = shown;
+  run();
+}
+
 async function openFile(file) {
   let measurement;
   try {
     measurement = new BpPlusMeasurement(await file.text());
   } catch (error) {
+    shown = null;
     current = { failure: `${file.name} could not be read as a BP+ measurement. ${error.message}` };
     render();
     return;
   }
 
   if (measurement.rootName !== 'BPplus') {
+    shown = null;
     current = {
       failure: `${file.name} is a ${measurement.rootName} file. Only BP+ measurements can be analysed here.`,
     };
@@ -222,6 +262,14 @@ function exportCsv() {
   link.click();
   link.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+/** Normalising applies to sAveragePulse, which the baEstimate beat does not use. */
+function applyOptions() {
+  const fromEstimate = settings.reservoirBrachial === 'baEstimate';
+  const normalise = $('res-normalise');
+  if (normalise) normalise.disabled = fromEstimate;
+  $('res-normalise-option')?.classList.toggle('disabled', fromEstimate);
 }
 
 function applyVisibility() {
@@ -309,7 +357,15 @@ function renderCharts(result) {
   const fs = result.values.re_sam_rate;
 
   showSection('res-sec-pulses', s.pulses && s.pulses.traces.length);
-  if (s.pulses && s.pulses.traces.length) drawPulses(s.pulses);
+  if (s.pulses && s.pulses.traces.length) {
+    const legend = $('res-pulses-legend');
+    if (legend) {
+      legend.textContent = s.pulses.source === 'sBaseLined'
+        ? `| sBaseLined, scaled as the brachial beat${s.pulses.normalised ? ' (normalised)' : ''}, one line per selected pulse`
+        : '| baEstimate, one line per selected pulse';
+    }
+    drawPulses(s.pulses);
+  }
 
   showSection('res-sec-aortic', s.aortic);
   if (s.aortic) drawAortic(s.aortic);
@@ -519,7 +575,7 @@ function renderTables(result, device) {
   host.innerHTML = GROUPS.map(group => {
     const columns = COLUMNS.filter(c => c.group === group);
     const withDevice = columns.some(c => (c.device || []).some(d => d.tag in device));
-    const corrected = new Set(result.corrections.map(k => k.column).filter(Boolean));
+    const corrected = new Set(result.corrections.flatMap(k => k.columns || (k.column ? [k.column] : [])));
 
     const rows = columns.map(c => {
       const shown = formatValue(result.values[c.header], c);

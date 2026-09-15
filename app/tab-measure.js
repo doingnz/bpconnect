@@ -4,6 +4,8 @@
  * The headline numbers, the cuff pressure while a measurement runs, and the
  * status line. Everything it shows comes from device events; it asks the
  * device for nothing.
+ *
+ * Save XML file writes the last measurement exactly as the device sent it.
  */
 
 import { DeviceMode } from '../sdk/index.js';
@@ -31,6 +33,9 @@ let restCountdown = null;
  */
 let statusHeld = false;
 
+/** The last measurement's XML as received, and the file name to offer for it. */
+let received = null;
+
 export function initMeasure() {
   elements = {
     bSys:     document.getElementById('bSys'),
@@ -45,7 +50,9 @@ export function initMeasure() {
     qualityBlock: document.getElementById('quality-block'),
     qualityRhythm: document.getElementById('quality-rhythm'),
     qualitySnr:    document.getElementById('quality-snr'),
+    saveXml:       document.getElementById('save-xml'),
   };
+  elements.saveXml?.addEventListener('click', saveXml);
   clearMeasure();
 }
 
@@ -62,6 +69,9 @@ export function showMeasureResults(measurement) {
   showBlock('measure');
   statusHeld = true;
   showQuality(measurement);
+
+  received = measurement.xml ? { xml: measurement.xml, name: xmlFileName(measurement) } : null;
+  if (elements.saveXml) elements.saveXml.disabled = !received;
 
   const readings = measurement.readings || [];
   if (readings.length > 1) {
@@ -86,6 +96,50 @@ export function clearMeasure() {
   setText(elements.pressure, BLANK);
   setStatus('', '');
   showBlock('measure');
+  received = null;
+  if (elements.saveXml) elements.saveXml.disabled = true;
+}
+
+/**
+ * Save the received XML. Where the browser has a save dialog (Chrome and Edge
+ * on a desktop) it asks where; elsewhere (Chrome on Android, Firefox, Safari)
+ * it is an ordinary download into the browser's download folder.
+ */
+async function saveXml() {
+  if (!received) return;
+  const { xml, name } = received;
+  const blob = new Blob([xml], { type: 'application/xml' });
+
+  if (typeof window.showSaveFilePicker === 'function') {
+    try {
+      const handle = await window.showSaveFilePicker({
+        suggestedName: name,
+        types: [{ description: 'BP+ measurement', accept: { 'application/xml': ['.xml'] } }],
+      });
+      const writable = await handle.createWritable();
+      await writable.write(blob);
+      await writable.close();
+    } catch (error) {
+      // Closing the dialog without saving is not a failure.
+      if (error.name !== 'AbortError') setStatus('Ready', `The XML file was not saved: ${error.message}`);
+    }
+    return;
+  }
+
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = name;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+/** BPplus_<guid>.xml, the name the reservoir tab gives a measurement too. */
+function xmlFileName(measurement) {
+  const id = measurement.guid || measurement.timestamp || 'measurement';
+  return `BPplus_${String(id).replace(/[^\w.-]+/g, '_')}.xml`;
 }
 
 /**

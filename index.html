@@ -221,6 +221,12 @@
                     <div id="quality-snr" class="quality-line"></div>
                   </div>
 
+                  <!-- The measurement exactly as the device sent it. Enabled by
+                       app/tab-measure.js once there is one. -->
+                  <div class="measure-actions">
+                    <button id="save-xml" class="button button-small" type="button" disabled>Save XML file</button>
+                  </div>
+
                   <!-- ── Measurement setup ── see app/measure-setup.js ────────── -->
                   <div class="setup-card">
 
@@ -443,6 +449,24 @@
                       <button id="res-export" class="button button-small" type="button" disabled>
                         Export CSV
                       </button>
+
+                      <!-- Where the brachial beat and the pulse traces come from:
+                           BRACHIAL_SOURCES in analysis/reservoir.js. -->
+                      <div class="res-option">
+                        <span>sBaseLined</span>
+                        <label class="toggle">
+                          <input id="res-brachial" type="checkbox"
+                                 aria-label="Take the brachial beat and pulse traces from baEstimate rather than sBaseLined">
+                          <span class="toggle-icon"></span>
+                        </label>
+                        <span>baEstimate</span>
+                      </div>
+
+                      <label id="res-normalise-option" class="checkbox res-option">
+                        <input id="res-normalise" type="checkbox">
+                        <i class="icon-checkbox"></i>
+                        <span>Normalise sAveragePulse 0–1</span>
+                      </label>
                     </div>
 
                     <div id="res-placeholder" class="res-placeholder">
@@ -463,7 +487,7 @@
                     <div class="wf-section" id="res-sec-pulses">
                       <div class="wf-title">
                         <span class="wf-title-dot" style="background:#2e7d32;"></span>
-                        Pulse traces &nbsp;<span class="wf-legend-ref">| brachial estimate, one line per selected pulse</span>
+                        Pulse traces &nbsp;<span id="res-pulses-legend" class="wf-legend-ref">| one line per selected pulse</span>
                       </div>
                       <div class="wf-canvas-wrap wf-tall"><canvas id="res-chart-pulses"></canvas></div>
                     </div>

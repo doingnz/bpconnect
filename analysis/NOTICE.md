@@ -81,6 +81,14 @@ when more than 10 samples remain, as proposed in adh30/BPplus-Reservoir#45.
   inflection at sample 7, 14, 28 or 29, among others — it stops with "Array
   indices must be positive integers" before writing any results (adh30/BPplus-Reservoir#30).
 
+The brachial beat is an option rather than a correction, because which signal
+it should come from is a choice. beta7 draws the pulse traces from `baEstimate`
+but computes the brachial values from `sAveragePulse` scaled to the cuff
+pressures, so its figure is not the waveform its numbers come from. Outside the
+beta7 mode the two share a source: `sBaseLined`, scaled as `sAveragePulse` is
+(normalised to 0–1 first, if asked), or `baEstimate`, whose selected pulses are
+averaged into the brachial beat.
+
 Behaviour kept as beta7 has it — reported upstream, but not changed here,
 because changing it changes results that are the original authors' to define:
 

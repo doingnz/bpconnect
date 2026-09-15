@@ -6,11 +6,11 @@
  */
 
 /** This port's version. package.json must agree; test/run.mjs checks. */
-export const RESERVOIR_JS_VERSION = '0.1.1';
+export const RESERVOIR_JS_VERSION = '0.2.0';
 
 export {
-  analyseReservoir, qualityFromSnr, ANALYSIS_VERSION, KRESERVOIR_VERSION, MIN_SNR,
-  CORRECTIONS, CORRECTED_VERSION,
+  analyseReservoir, averageBeats, qualityFromSnr, ANALYSIS_VERSION, KRESERVOIR_VERSION, MIN_SNR,
+  CORRECTIONS, CORRECTED_VERSION, BRACHIAL_SOURCES, BRACHIAL_BEAT_COLUMNS,
 } from './reservoir.js';
 export { reservoirInput, deviceValues } from './input.js';
 export { COLUMNS, GROUPS, formatValue, resultsCsv } from './columns.js';

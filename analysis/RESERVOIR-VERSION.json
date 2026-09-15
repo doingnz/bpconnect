@@ -10,12 +10,12 @@
         "vectors is the bpplus-reservoir-vectors tag that release was checked against;",
         "CI checks this copy against the same tag."
     ],
-    "version": "0.1.1",
+    "version": "0.2.0",
     "source": {
         "repository": "https://github.com/doingnz/bpplus-js-reservoir.git",
         "path": "reservoir/",
-        "ref": "v0.1.1",
-        "commit": "4c7d20253036e44534ebd8f4a1157129ce9cd2fd"
+        "ref": "v0.2.0",
+        "commit": "18ec42045b8037e33003436643c27e57df1fdd87"
     },
     "vectors": {
         "repository": "https://github.com/doingnz/bpplus-reservoir-vectors",
@@ -23,6 +23,6 @@
     },
     "vendored": {
         "on": "2026-09-15",
-        "treeSha256": "ac350e68738ba850e7c589e7f9b81920adf94f769b6a94bffbda5f69b61900c1"
+        "treeSha256": "3bb4783d64678d2f260a6c3b05c28948873653dc67144bd74c27052808eeef4d"
     }
 }

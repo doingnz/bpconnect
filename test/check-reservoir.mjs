@@ -92,6 +92,13 @@ function close(a, b, tolerance) {
     check('simulator: pulse traces are the selected pulses',
       result.series.pulses?.numbers.join() === input.sSelectedPulseIndexes.map(p => p + 1).join());
   }
+
+  // The tab offers the other brachial options too.
+  for (const options of [{ normalise: true }, { brachial: 'baEstimate' }]) {
+    const other = analyseReservoir(input, options);
+    check(`simulator: every section computed with ${JSON.stringify(options)}`, other.errors.length === 0,
+      other.errors.map(e => `${e.section}: ${e.message}`).join('; '));
+  }
 }
 
 // ── 4. The vectors ───────────────────────────────────────────────────────────

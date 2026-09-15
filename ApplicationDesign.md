@@ -367,12 +367,12 @@ Not implemented yet (phase 2). The two things most likely to be got wrong:
 
 | Tab | Content |
 |---|---|
-| 1 | Live brachial and central readings; cuff pressure during a measurement; status and any failure message |
+| 1 | Live brachial and central readings; cuff pressure during a measurement; status and any failure message; Save XML file, which writes the measurement exactly as the device sent it — through a save dialog in desktop Chrome and Edge, as a download elsewhere |
 | 2 | Full results table, the individual readings for AOBP and BP+ [3], and the measurement metadata |
 | 3 | Pulse-wave charts, the two average pulses, and the raw pressure recordings — one cuff ramp per BP reading, then the suprasystolic channel |
 | 4 | Connection, flow control, tracing; what the browser supports; writing a setting to the device; the debug and trace pane |
 | 5 | Firmware update. Hidden unless switched on in Settings — a service action, not something a clinical user should meet on the way to a measurement |
-| 6 | Reservoir analysis of the latest measurement or of an opened XML file: all 89 values, the four figures, the BP+'s own value alongside where it has one, CSV export. Hidden unless switched on in Settings — see below |
+| 6 | Reservoir analysis of the latest measurement or of an opened XML file: all 89 values, the four figures, the BP+'s own value alongside where it has one, CSV export, and a switch for where the brachial beat comes from. Hidden unless switched on in Settings — see below |
 
 The action button cycles on `device.state`:
 
@@ -403,6 +403,13 @@ Authors, references and licensing are in `analysis/NOTICE.md`.
   MATLAB running `bpp_Res2.m` itself, on the recordings in
   bpplus-reservoir-vectors; CI checks this copy against the same vectors tag.
 - **Below 6 dB SNR it does not run**, as the MATLAB does not.
+- **The brachial beat has one source.** beta7 draws the pulse traces from
+  `baEstimate` but computes the brachial values from `sAveragePulse` scaled to
+  the cuff pressures. The tab's switch takes both from one signal: `sBaseLined`
+  (the default, with beta7's brachial values; the traces are `sBaseLined` at the
+  same scale, and the checkbox normalises `sAveragePulse` to 0–1 before scaling)
+  or `baEstimate` (its selected pulses, averaged into the brachial beat).
+  `re_resvers` in the CSV says which.
 
 ---
 
@@ -419,6 +426,8 @@ Owned entirely by `app/settings.js`.
 | `bptrace` | `on` · `off` | `off` |
 | `bpconnrate` | a baud rate | `115200` |
 | `bpreservoir` | `on` · `off` — show the reservoir analysis tab | `off` |
+| `bpresbrachial` | `sBaseLined` · `baEstimate` — where the reservoir tab's brachial beat comes from | `sBaseLined` |
+| `bpresnormalise` | `on` · `off` — normalise `sAveragePulse` to 0–1 before scaling it | `off` |
 
 `bluetooth-nus` is a legacy value and maps onto `bluetooth`; one transport now
 handles every bridge profile.

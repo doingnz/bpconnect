@@ -433,6 +433,15 @@ Make navbar transparent
 .quality-good b       { color: #2e7d32; }
 .quality-excellent b  { color: #2e7d32; }
 
+/* Save XML file, under the quality lines. */
+.measure-actions {
+    display: flex;
+    justify-content: center;
+    margin: 6px 0 0;
+}
+
+.measure-actions .button { flex: 0 0 auto; width: auto; padding: 0 14px; }
+
 /* Cancel during a firmware transfer is destructive enough to look like it, and
    the disabled state has to read as "this button, not yet" rather than as a
    different control. So: red when it can be pressed, washed red when it
@@ -477,15 +486,28 @@ Make navbar transparent
 .res-toolbar {
     display: flex;
     flex-wrap: wrap;
-    gap: 10px;
+    align-items: center;
+    gap: 10px 16px;
     margin: 12px 0 4px;
 }
 
-/* Framework7 buttons fill their row; these two share one. */
+/* Framework7 buttons fill their row; these share one. */
 .res-toolbar .button { flex: 0 0 auto; width: auto; padding: 0 14px; }
 
 /* The file input is opened by its label, which is styled as the button. */
 .res-open input { display: none; }
+
+/* The brachial source switch and the normalise checkbox, each with its words. */
+.res-option {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    color: #444;
+    white-space: nowrap;
+}
+
+.res-option.disabled { opacity: 0.45; pointer-events: none; }
 
 .res-placeholder {
     padding: 28px 16px;

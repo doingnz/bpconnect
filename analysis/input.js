@@ -48,6 +48,7 @@ export function reservoirInput(measurement, { file } = {}) {
     sAveragePulse: array('sAveragePulse'),
     cAveragePulse: array('cAveragePulse'),
     baEstimate: array('baEstimate'),
+    sBaseLined: array('sBaseLined'),
     sPulseStartIndexes: array('sPulseStartIndexes'),
     sSelectedPulseIndexes: array('sSelectedPulseIndexes'),
   };

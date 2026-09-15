@@ -65,8 +65,63 @@ export const CORRECTIONS = [
   },
 ];
 
-/** Written to re_resvers when the corrections apply, so a CSV row says which. */
+/**
+ * Written to re_resvers when the corrections apply, followed by the brachial
+ * options — `beta7-bpconnect sBaseLined`, `beta7-bpconnect sBaseLined normalised`
+ * or `beta7-bpconnect baEstimate` — so a CSV row says which.
+ */
 export const CORRECTED_VERSION = `${ANALYSIS_VERSION}-bpconnect`;
+
+/**
+ * Where the brachial average beat and the pulse traces figure come from.
+ *
+ * beta7 draws the pulse traces from baEstimate but computes the brachial values
+ * from sAveragePulse scaled to the cuff pressures, so its figure is not the
+ * waveform its numbers come from: baEstimate carries corrections sAveragePulse
+ * does not. Outside the beta7 mode the two share a source:
+ *
+ * - `sBaseLined`: the brachial beat is sAveragePulse scaled as beta7 scales it,
+ *   and the pulse traces are sBaseLined scaled by the same gain and offset.
+ * - `baEstimate`: the pulse traces are baEstimate, and the brachial beat is the
+ *   mean of the selected pulses among them (see averageBeats).
+ */
+export const BRACHIAL_SOURCES = Object.freeze(['sBaseLined', 'baEstimate']);
+
+/** The resdata.xls columns computed from the brachial average beat. */
+export const BRACHIAL_BEAT_COLUMNS = Object.freeze([
+  're_tbasbp', 're_ba_t1', 're_ba_p1', 're_ba_t2', 're_ba_p2', 're_pai', 're_ba_esp', 're_ba_dpdt',
+  're_intbapr', 're_maxbapr', 're_tmaxbapr', 're_intbaxsp', 're_maxbaxsp', 're_tmaxbap',
+  're_bafita', 're_bafitb', 're_barsq', 're_bapinf',
+]);
+
+// How each brachial option departs from beta7, in the form CORRECTIONS takes,
+// with `columns` naming every result it changes.
+const BRACHIAL_DEPARTURES = {
+  sBaseLined: {
+    id: 'pulse-traces-sbaselined',
+    column: null,
+    text: 'The pulse traces figure shows sBaseLined, scaled by the gain and offset that turn ' +
+          'sAveragePulse into the brachial average beat, so the figure shows the signal the ' +
+          'brachial values come from. beta7 draws baEstimate, which carries corrections ' +
+          'sAveragePulse does not.',
+  },
+  normalised: {
+    id: 'brachial-normalised',
+    column: null,
+    columns: BRACHIAL_BEAT_COLUMNS,
+    text: 'sAveragePulse is normalised to 0–1 before it is scaled, so the brachial average beat ' +
+          'runs from the cuff diastolic to systolic pressure. beta7 scales it as recorded, which ' +
+          'shifts the beat by the scaled minimum of sAveragePulse.',
+  },
+  baEstimate: {
+    id: 'brachial-baestimate',
+    column: null,
+    columns: BRACHIAL_BEAT_COLUMNS,
+    text: 'The brachial average beat is the mean of the selected baEstimate pulses the pulse ' +
+          'traces figure shows. beta7 scales sAveragePulse to the cuff pressures instead, so its ' +
+          'brachial beat has the suprasystolic shape.',
+  },
+};
 
 /**
  * Quality from SNR, as read_BPplus.m names it.
@@ -96,6 +151,7 @@ export function qualityFromSnr(snr) {
  * @property {number[]} sAveragePulse     suprasystolic average beat, not in mmHg
  * @property {number[]} cAveragePulse     aortic average beat, mmHg
  * @property {number[]} baEstimate        brachial estimate, mmHg
+ * @property {number[]} sBaseLined        suprasystolic signal, baseline removed, not in mmHg
  * @property {number[]} sPulseStartIndexes     0-based, as the XML carries them
  * @property {number[]} sSelectedPulseIndexes  0-based
  */
@@ -104,19 +160,31 @@ export function qualityFromSnr(snr) {
  * Run the analysis.
  *
  * @param {ReservoirInput} input
- * @param {{compatibility?: 'beta7'}} [options]  'beta7' reproduces bpp_Res2.m
- *        beta7 exactly, without CORRECTIONS
+ * @param {object} [options]
+ * @param {'beta7'} [options.compatibility]  reproduces bpp_Res2.m beta7 exactly,
+ *        without CORRECTIONS; the brachial options are then ignored
+ * @param {'sBaseLined'|'baEstimate'} [options.brachial='sBaseLined']  see BRACHIAL_SOURCES
+ * @param {boolean} [options.normalise=false]  with sBaseLined, normalise
+ *        sAveragePulse to 0–1 before scaling it to the cuff pressures
  * @returns {{
  *   processed: boolean, reason: string|null, quality: string,
  *   values: Object<string, number|string|null>,
  *   errors: Array<{section: string, message: string}>,
  *   series: object,
- *   corrections: Array<{id: string, column: string|null, text: string}>,
+ *   corrections: Array<{id: string, column: string|null, columns?: string[], text: string}>,
  * }}
  *   `values` is keyed by the resdata.xls column header (see columns.js).
+ *   `corrections` is every way the result departs from beta7: CORRECTIONS, and
+ *   the brachial options chosen.
  */
-export function analyseReservoir(input, { compatibility = null } = {}) {
+export function analyseReservoir(input, { compatibility = null, brachial = 'sBaseLined', normalise = false } = {}) {
   const beta7 = compatibility === 'beta7';
+  if (!BRACHIAL_SOURCES.includes(brachial)) {
+    throw new RangeError(`brachial must be one of ${BRACHIAL_SOURCES.join(', ')}, not ${brachial}.`);
+  }
+  // beta7 draws baEstimate and computes from sAveragePulse, unnormalised.
+  const source = beta7 ? 'baEstimate' : brachial;
+  const normalised = !beta7 && brachial === 'sBaseLined' && Boolean(normalise);
   const values = Object.fromEntries(COLUMNS.map(c => [c.header, null]));
   const errors = [];
   const series = {};
@@ -127,13 +195,19 @@ export function analyseReservoir(input, { compatibility = null } = {}) {
   values.re_date = input.datetime ?? '';
   values.re_bppvers = input.softwareVersion ?? '';
   values.re_bppalgo = input.algorithmRevision ?? '';
-  values.re_resvers = beta7 ? ANALYSIS_VERSION : CORRECTED_VERSION;
+  values.re_resvers = beta7
+    ? ANALYSIS_VERSION
+    : `${CORRECTED_VERSION} ${brachial}${normalised ? ' normalised' : ''}`;
   values.re_kres = KRESERVOIR_VERSION;
   values.re_snr = finite(input.snr);
 
   const result = {
     processed: false, reason: null, quality, values, errors, series,
-    corrections: beta7 ? [] : CORRECTIONS,
+    corrections: beta7 ? [] : [
+      ...CORRECTIONS,
+      BRACHIAL_DEPARTURES[brachial],
+      ...(normalised ? [BRACHIAL_DEPARTURES.normalised] : []),
+    ],
   };
 
   if (!(input.snr >= MIN_SNR)) {
@@ -188,12 +262,32 @@ export function analyseReservoir(input, { compatibility = null } = {}) {
   // bpp_Res2 writes its own lower-case quality, for processed files only.
   values.re_quality = quality.toLowerCase();
 
-  // Individual pulses from the brachial estimate, for the pulse traces plot.
-  section('Pulse traces', () => {
-    const pAll = (input.baEstimate || []).slice();
-    const len = pAll.length;
-    for (let i = 0; i < Math.min(200, len); i++) if (pAll[i] < ba.dbp) pAll[i] = NaN;
-    for (let i = Math.max(1, len - 200) - 1; i < len; i++) if (pAll[i] > ba.sbp) pAll[i] = NaN;
+  // ── The pulse traces and the brachial average beat ────────────────────────
+  // See BRACHIAL_SOURCES for where each comes from.
+
+  // The gain and offset that put sAveragePulse, and sBaseLined with it, in mmHg:
+  // DIA + v·PP/span as read_BPplus.m has it, or DIA + (v − min)·PP/span normalised.
+  const scaling = (() => {
+    const s = input.sAveragePulse;
+    const lowest = min(s).value;
+    const span = max(s).value - lowest;
+    if (span === 0) return null;
+    const gain = ba.pp / span;
+    return { gain, offset: normalised ? ba.dbp - lowest * gain : ba.dbp };
+  })();
+
+  const traces = section('Pulse traces', () => {
+    let signal;
+    if (source === 'sBaseLined') {
+      if (!input.sBaseLined?.length) throw new Error('The measurement has no sBaseLined signal to draw.');
+      if (!scaling) throw new Error('The suprasystolic average pulse has zero amplitude, so sBaseLined cannot be scaled.');
+      signal = input.sBaseLined.map(v => scaling.offset + (v * scaling.gain));
+    } else {
+      signal = (input.baEstimate || []).slice();
+    }
+    const len = signal.length;
+    for (let i = 0; i < Math.min(200, len); i++) if (signal[i] < ba.dbp) signal[i] = NaN;
+    for (let i = Math.max(1, len - 200) - 1; i < len; i++) if (signal[i] > ba.sbp) signal[i] = NaN;
 
     const starts = (input.sPulseStartIndexes || []).map(v => round(v + 1));
     const selected = input.sSelectedPulseIndexes || [];
@@ -206,26 +300,28 @@ export function analyseReservoir(input, { compatibility = null } = {}) {
       ? Array.from({ length: Math.max(0, selected.length - 1) }, (_, i) => i)
       : selected.filter(p => Number.isInteger(p) && p >= 0 && p + 1 < starts.length);
 
-    const traces = [];
+    const cut = [];
     for (const p of pulses) {
       const from = starts[p], to = starts[p + 1];
       if (to === undefined || to > len || from < 1) {
-        throw new Error('A pulse start index lies outside the brachial estimate.');
+        throw new Error(`A pulse start index lies outside ${source === 'sBaseLined' ? 'sBaseLined' : 'the brachial estimate'}.`);
       }
-      traces.push(pAll.slice(from - 1, to).map(v => (v === 0 ? NaN : v)));
+      cut.push(signal.slice(from - 1, to).map(v => (v === 0 ? NaN : v)));
     }
-    series.pulses = { sampleRate: fs, traces, numbers: pulses.map(p => p + 1) };
+    series.pulses = { sampleRate: fs, traces: cut, numbers: pulses.map(p => p + 1), source, normalised };
+    return cut;
   });
 
-  // The brachial average beat is the suprasystolic average pulse, scaled to
-  // the cuff's systolic and diastolic pressure.
   const baP = section('Brachial average beat', () => {
-    const s = input.sAveragePulse;
-    const span = max(s).value - min(s).value;
-    if (span === 0) throw new Error('The suprasystolic average pulse has zero amplitude.');
-    const cal = ba.pp / span;
-    return s.map(v => ba.dbp + (v * cal));
+    if (source === 'baEstimate' && !beta7) {
+      if (!traces) throw new Error('The pulse traces could not be cut, so there are no baEstimate pulses to average.');
+      if (!traces.length) throw new Error('No pulses are selected, so there are no baEstimate pulses to average.');
+      return averageBeats(traces, input.sAveragePulse.length);
+    }
+    if (!scaling) throw new Error('The suprasystolic average pulse has zero amplitude.');
+    return input.sAveragePulse.map(v => scaling.offset + (v * scaling.gain));
   });
+  if (baP) series.brachial = { sampleRate: fs, pressure: baP };
 
   const aoPav = input.cAveragePulse;
 
@@ -469,6 +565,35 @@ export function analyseReservoir(input, { compatibility = null } = {}) {
   }
 
   return result;
+}
+
+/**
+ * The mean of pulses that start together but differ in length. Sample k is the
+ * mean of every pulse long enough to have a sample k, leaving out NaN; a sample
+ * that is NaN in all of them stays NaN. The result runs to `length` samples, or
+ * to the end of the longest pulse if that comes first.
+ *
+ * The BP+ does not say how it averages sAveragePulse. Of the simple averages
+ * tried on sBaseLined, this one came closest to reproducing it.
+ *
+ * @param {number[][]} pulses
+ * @param {number} length
+ * @returns {number[]}
+ */
+export function averageBeats(pulses, length) {
+  const longest = pulses.reduce((most, p) => Math.max(most, p.length), 0);
+  const out = [];
+  for (let k = 0; k < Math.min(length, longest); k++) {
+    let total = 0, n = 0;
+    for (const p of pulses) {
+      if (k < p.length && Number.isFinite(p[k])) {
+        total += p[k];
+        n++;
+      }
+    }
+    out.push(n ? total / n : NaN);
+  }
+  return out;
 }
 
 function finite(v) {
