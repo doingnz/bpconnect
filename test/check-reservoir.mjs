@@ -122,6 +122,9 @@ for (const m of measurements) {
     const v = result.values;
     check(`${m.name}: diastolic duration is the beat less the ejection duration`,
       close(v.re_aodd, 60 / v.re_hr - v.re_ao_ed, 1e-12), String(v.re_aodd));
+    check(`${m.name}: SEVR figure ends systole where the SEVR value does`,
+      result.series.sevr?.systoleEnd === round(v.re_ao_ed * v.re_sam_rate),
+      `${result.series.sevr?.systoleEnd} vs ${round(v.re_ao_ed * v.re_sam_rate)}`);
   } else {
     const note = !result.processed
       ? result.reason

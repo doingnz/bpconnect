@@ -49,6 +49,13 @@ export const CORRECTIONS = [
     text: 'Diastolic duration is 60/HR less the ejection duration. beta7 subtracts ' +
           'the end-systolic pressure divided by 1000 instead.',
   },
+  {
+    id: 'sevr-figure-systole',
+    column: null,
+    text: 'The SEVR figure ends systole where the SEVR value does, at the ejection ' +
+          'duration. beta7 draws it at the steepest fall found for wave intensity, ' +
+          'which can be a sample or more away, so the shading did not match the number.',
+  },
 ];
 
 /** Written to re_resvers when the corrections apply, so a CSV row says which. */
@@ -297,6 +304,7 @@ export function analyseReservoir(input, { compatibility = null } = {}) {
   // The aortic ejection duration marks the end of systole, since the aortic
   // rather than the brachial pressure is the cardiac load.
 
+  let lsysSevr = null;
   if (aoRes) {
     section('Aortic SEVR', () => {
       const lsys = round(aoRes.Tn * fs);
@@ -308,6 +316,7 @@ export function analyseReservoir(input, { compatibility = null } = {}) {
       values.re_aosevr = dpti / spti;
       values.re_pmsys = spti / lsys;
       values.re_pmdia = dpti / (aoPav.length - lsys);
+      lsysSevr = lsys;
     });
 
     // Forward and backward pressure, assuming Pb = (Pres - min P)/2.
@@ -416,14 +425,16 @@ export function analyseReservoir(input, { compatibility = null } = {}) {
 
   // ── SEVR plot ─────────────────────────────────────────────────────────────
   // bpp_Res2 draws this after the wave intensity section, which reuses lsys for
-  // the minimum dP — so the plot's end of systole is that one.
+  // the minimum dP — so beta7's figure ends systole there, not where the SEVR
+  // value it illustrates does.
 
-  if (aoRes && lsysWave !== null) {
+  const systoleEnd = beta7 ? lsysWave : lsysSevr;
+  if (aoRes && systoleEnd !== null) {
     const notch = fix(sep * fs);
     series.sevr = {
       pressure: aoPav.slice(),
       base: min(aoPav).value,
-      systoleEnd: lsysWave,
+      systoleEnd,
       notch: notch >= 1 && notch <= aoPav.length ? notch : null,
       inflection: pwa ? round(pwa.Ti * fs) : null,
     };

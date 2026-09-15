@@ -64,6 +64,10 @@ reproduces the original exactly.
 
 - **Diastolic duration** (`re_aodd`) is 60/HR less the ejection duration. beta7
   subtracts the end-systolic pressure divided by 1000.
+- **The SEVR figure** ends systole at the ejection duration, where the SEVR
+  value does. beta7 reuses a variable the wave intensity section has
+  overwritten, so its figure ends systole at the minimum of that section's
+  derivative instead.
 
 Behaviour kept as beta7 has it, because changing it changes results that are
 the original authors' to define:
