@@ -56,6 +56,13 @@ export const CORRECTIONS = [
           'duration. beta7 draws it at the steepest fall found for wave intensity, ' +
           'which can be a sample or more away, so the shading did not match the number.',
   },
+  {
+    id: 'selected-pulses',
+    column: null,
+    text: 'The pulse traces figure shows the pulses the BP+ selected. beta7 draws as many ' +
+          'as were selected, less one, from the start of the recording, so a rejected ' +
+          'pulse could appear and the last selected ones be left out.',
+  },
 ];
 
 /** Written to re_resvers when the corrections apply, so a CSV row says which. */
@@ -189,18 +196,25 @@ export function analyseReservoir(input, { compatibility = null } = {}) {
     for (let i = Math.max(1, len - 200) - 1; i < len; i++) if (pAll[i] > ba.sbp) pAll[i] = NaN;
 
     const starts = (input.sPulseStartIndexes || []).map(v => round(v + 1));
-    const numGood = (input.sSelectedPulseIndexes || []).length - 1;
+    const selected = input.sSelectedPulseIndexes || [];
     if (starts.length < 2) throw new Error('At least two pulse start indexes are required.');
 
+    // The pulses the BP+ selected, each from its start to the next pulse's.
+    // beta7 takes as many as were selected, less one, from the first pulse in
+    // the recording onwards, whether or not they were selected.
+    const pulses = beta7
+      ? Array.from({ length: Math.max(0, selected.length - 1) }, (_, i) => i)
+      : selected.filter(p => Number.isInteger(p) && p >= 0 && p + 1 < starts.length);
+
     const traces = [];
-    for (let i = 0; i < numGood; i++) {
-      const from = starts[i], to = starts[i + 1];
+    for (const p of pulses) {
+      const from = starts[p], to = starts[p + 1];
       if (to === undefined || to > len || from < 1) {
         throw new Error('A pulse start index lies outside the brachial estimate.');
       }
       traces.push(pAll.slice(from - 1, to).map(v => (v === 0 ? NaN : v)));
     }
-    series.pulses = { sampleRate: fs, traces };
+    series.pulses = { sampleRate: fs, traces, numbers: pulses.map(p => p + 1) };
   });
 
   // The brachial average beat is the suprasystolic average pulse, scaled to

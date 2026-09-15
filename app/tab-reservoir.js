@@ -321,9 +321,9 @@ function renderCharts(result) {
   if (s.waveIntensity) drawWaveIntensity(s.waveIntensity);
 }
 
-function drawPulses({ sampleRate, traces }) {
+function drawPulses({ sampleRate, traces, numbers }) {
   makeChart('res-chart-pulses', traces.map((trace, k) => ({
-    label: `Pulse ${k + 1}`,
+    label: `Pulse ${numbers ? numbers[k] : k + 1}`,
     data: trace.map((y, i) => ({ x: (i + 1) / sampleRate, y: Number.isFinite(y) ? y : null })),
     borderColor: 'rgba(46, 125, 50, 0.45)',
     borderWidth: 1.5,

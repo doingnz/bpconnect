@@ -125,6 +125,9 @@ for (const m of measurements) {
     check(`${m.name}: SEVR figure ends systole where the SEVR value does`,
       result.series.sevr?.systoleEnd === round(v.re_ao_ed * v.re_sam_rate),
       `${result.series.sevr?.systoleEnd} vs ${round(v.re_ao_ed * v.re_sam_rate)}`);
+    check(`${m.name}: pulse traces are the selected pulses`,
+      result.series.pulses?.numbers.join() === input.sSelectedPulseIndexes.map(p => p + 1).join(),
+      result.series.pulses?.numbers.join());
   } else {
     const note = !result.processed
       ? result.reason

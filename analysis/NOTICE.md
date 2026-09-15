@@ -68,6 +68,9 @@ reproduces the original exactly.
   value does. beta7 reuses a variable the wave intensity section has
   overwritten, so its figure ends systole at the minimum of that section's
   derivative instead.
+- **The pulse traces figure** shows the pulses in `sSelectedPulseIndexes`.
+  beta7 draws the first N−1 pulses of the recording, N being the number
+  selected, so rejected pulses can appear and selected ones be missing.
 
 Behaviour kept as beta7 has it, because changing it changes results that are
 the original authors' to define:
