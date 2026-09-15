@@ -17,15 +17,19 @@ All of them are currently **scipy reference** values, produced by
 written. Replace them with MATLAB output as soon as it is:
 
 ```
-# XML for the simulator's recorded measurement
-node --input-type=module -e "import {MEASUREMENT_XML} from './sdk/transports/simulator-data.js'; import fs from 'node:fs'; fs.writeFileSync('C:/temp/xml/simulator.xml', MEASUREMENT_XML)"
+# The simulator's recorded measurement, and the fixtures from BPplus-Reservoir
+node --input-type=module -e "import {MEASUREMENT_XML} from './sdk/transports/simulator-data.js'; import fs from 'node:fs'; fs.mkdirSync('C:/temp/xml', {recursive: true}); fs.writeFileSync('C:/temp/xml/simulator.xml', MEASUREMENT_XML); for (const f of fs.readdirSync('D:/Uscom/github/BPplus-Reservoir/tests/fixtures').filter(n => n.endsWith('.xml'))) fs.copyFileSync('D:/Uscom/github/BPplus-Reservoir/tests/fixtures/' + f, 'C:/temp/xml/' + f)"
 
-# plus the BPplus_*.xml and synthetic_*.xml fixtures from BPplus-Reservoir/tests/fixtures
 matlab -batch "addpath('test/reservoir'); export_reference('D:\Uscom\github\BPplus-Reservoir', 'C:\temp\xml', 'test/reservoir/reference')"
 ```
 
-`export_reference.m` runs `bpp_Res2.m` exactly as it ships and converts its
-`resdata.xls`, so there is no second transcription to trust.
+`export_reference.m` runs `bpp_Res2.m` as it ships and converts its
+`resdata.xls`, so there is no second transcription to trust. It works from
+R2019b. Releases before R2021a cannot parse one plotting line of `bpp_Res2.m`,
+which it rewrites in a temporary copy without touching any result — the comment
+at the top of the file says exactly what.
+
+The CardioScope fixtures are analysed too, and skipped by the check.
 
 The corrections `analysis/` makes to beta7 on purpose (`CORRECTIONS` in
 `analysis/reservoir.js`) are switched off by
