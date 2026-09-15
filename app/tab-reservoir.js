@@ -33,6 +33,7 @@ const PRESSURE = '#2e7d32';
 const RESERVOIR = '#1565c0';
 const EXCESS = '#c62828';
 const MARKER = '#37474f';
+const AVERAGE = '#263238';   // the brachial average beat, dark over the pale pulses
 const TEXT = '#444';
 const MUTED = '#888';
 const GRID = 'rgba(0,0,0,0.07)';
@@ -365,11 +366,12 @@ function renderCharts(result) {
   if (s.pulses && s.pulses.traces.length) {
     const legend = $('res-pulses-legend');
     if (legend) {
-      legend.textContent = s.pulses.source === 'sBaseLined'
+      legend.textContent = (s.pulses.source === 'sBaseLined'
         ? `| sBaseLined, scaled as the brachial beat${s.pulses.normalised ? ' (normalised)' : ''}, one line per selected pulse`
-        : '| baEstimate, one line per selected pulse';
+        : '| baEstimate, one line per selected pulse') +
+        (s.brachial ? '; dark line, the brachial average beat the values come from' : '');
     }
-    drawPulses(s.pulses);
+    drawPulses(s.pulses, s.brachial);
   }
 
   showSection('res-sec-aortic', s.aortic);
@@ -382,13 +384,25 @@ function renderCharts(result) {
   if (s.waveIntensity) drawWaveIntensity(s.waveIntensity);
 }
 
-function drawPulses({ sampleRate, traces, numbers }) {
-  makeChart('res-chart-pulses', traces.map((trace, k) => ({
+function drawPulses({ sampleRate, traces, numbers }, brachial) {
+  const datasets = traces.map((trace, k) => ({
     label: `Pulse ${numbers ? numbers[k] : k + 1}`,
     data: trace.map((y, i) => ({ x: (i + 1) / sampleRate, y: Number.isFinite(y) ? y : null })),
     borderColor: 'rgba(46, 125, 50, 0.45)',
     borderWidth: 1.5,
-  })), {
+  }));
+  // The brachial average beat the values are computed from, over the pulses so
+  // the two can be compared. The lower order draws it on top.
+  if (brachial) {
+    datasets.push({
+      label: 'Brachial average beat',
+      data: brachial.pressure.map((y, i) => ({ x: (i + 1) / brachial.sampleRate, y: Number.isFinite(y) ? y : null })),
+      borderColor: AVERAGE,
+      borderWidth: 2.5,
+      order: -1,
+    });
+  }
+  makeChart('res-chart-pulses', datasets, {
     xTitle: 'Time (s)',
     yTitle: 'BP (mmHg)',
     interaction: { mode: 'nearest', intersect: false },
