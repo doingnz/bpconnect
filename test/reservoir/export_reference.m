@@ -41,6 +41,7 @@ function export_reference(reservoirDir, xmlDir, outDir)
     if isempty(dir(fullfile(xmlDir, '*.xml')))
         error('export_reference:NoFiles', 'No .xml files in %s.', xmlDir);
     end
+    provenance = checkoutDescription(reservoirDir);
 
     % outDir is usually relative to where this was started.
     here = pwd;
@@ -105,7 +106,8 @@ function export_reference(reservoirDir, xmlDir, outDir)
 
         [~, stem] = fileparts(char(results.re_file(row)));
         doc = struct( ...
-            'source', sprintf('MATLAB bpp_Res2 %s (%s)', char(results.re_resvers(row)), version), ...
+            'source', sprintf('MATLAB bpp_Res2 %s (%s), BPplus-Reservoir %s', ...
+                char(results.re_resvers(row)), version, provenance), ...
             'tolerance', 1e-6, ...
             'values', values);
 
@@ -147,6 +149,21 @@ function old = releaseBefore2021a()
         old = isMATLABReleaseOlderThan('R2021a');
     else
         old = true;                                     % R2020a or earlier
+    end
+end
+
+function text = checkoutDescription(folder)
+    % The commit of the MATLAB code that produced the values, and whether its
+    % .m files had uncommitted changes, so every reference names its version.
+    [status, commit] = system(sprintf('git -C "%s" rev-parse --short HEAD', folder));
+    if status ~= 0
+        text = 'not a git checkout';
+        return
+    end
+    text = strtrim(commit);
+    [~, changes] = system(sprintf('git -C "%s" status --porcelain -- "*.m"', folder));
+    if ~isempty(strtrim(changes))
+        text = [text ' with uncommitted .m changes'];
     end
 end
 
