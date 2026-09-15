@@ -372,7 +372,7 @@ Not implemented yet (phase 2). The two things most likely to be got wrong:
 | 3 | Pulse-wave charts, the two average pulses, and the raw pressure recordings — one cuff ramp per BP reading, then the suprasystolic channel |
 | 4 | Connection, flow control, tracing; what the browser supports; writing a setting to the device; the debug and trace pane |
 | 5 | Firmware update. Hidden unless switched on in Settings — a service action, not something a clinical user should meet on the way to a measurement |
-| 6 | Reservoir analysis of the latest measurement or of an opened XML file: all 89 values, the four figures, the BP+'s own value alongside where it has one, CSV export, and a switch for where the brachial beat comes from. Hidden unless switched on in Settings — see below |
+| 6 | Reservoir analysis of the latest measurement or of an opened XML file: all 89 values, the four figures, the BP+'s own value alongside where it has one, CSV export, a switch for where the brachial beat comes from, and the analysis version linked to its repository. Hidden unless switched on in Settings — see below |
 
 The action button cycles on `device.state`:
 

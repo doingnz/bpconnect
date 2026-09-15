@@ -19,6 +19,7 @@
 
 import {
   analyseReservoir, reservoirInput, deviceValues, COLUMNS, GROUPS, formatValue, resultsCsv,
+  RESERVOIR_JS_VERSION,
 } from '../analysis/index.js';
 import { BpPlusMeasurement } from '../sdk/index.js';
 import { settings } from './settings.js';
@@ -127,6 +128,10 @@ Chart.register({
 /** @param {{log?: function}} [options] */
 export function initReservoirTab(options = {}) {
   if (options.log) log = options.log;
+
+  // From the copy itself, so it cannot disagree with what runs.
+  const version = $('res-version');
+  if (version) version.textContent = `v${RESERVOIR_JS_VERSION}`;
 
   const toggle = $('bpreservoir');
   if (toggle) {
