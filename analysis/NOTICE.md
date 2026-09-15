@@ -71,6 +71,11 @@ reproduces the original exactly.
 - **The pulse traces figure** shows the pulses in `sSelectedPulseIndexes`.
   beta7 draws the first N−1 pulses of the recording, N being the number
   selected, so rejected pulses can appear and selected ones be missing.
+- **The T1 label on the SEVR figure** is placed at the inflection sample.
+  beta7 indexes the beat with `ao_Ti*samplerate`, which is `ti/fs*fs` and not
+  always an integer in floating point, so on some recordings — at 200 Hz, an
+  inflection at sample 7, 14, 28 or 29, among others — it stops with "Array
+  indices must be positive integers" before writing any results.
 
 Behaviour kept as beta7 has it, because changing it changes results that are
 the original authors' to define:
@@ -87,5 +92,5 @@ the original authors' to define:
 ## Status
 
 A research analysis, not a result of the BP+ and not for diagnosis. Values are
-checked against an independent implementation and, where available, against
-the MATLAB original — see `test/reservoir/README.md`.
+checked against the MATLAB original run on the same measurements — see
+`test/reservoir/README.md`.

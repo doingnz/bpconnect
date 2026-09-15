@@ -141,7 +141,13 @@ for (const m of measurements) {
   const reference = JSON.parse(fs.readFileSync(referenceFile, 'utf8'));
   const mismatches = [];
   for (const column of COLUMNS) {
-    if (!(column.header in reference.values) || column.header === 're_file') continue;
+    if (column.header === 're_file') continue;
+    // A column the reference lacks is a failure, not a pass: otherwise a
+    // reference that lost columns would check less and still say it agreed.
+    if (!(column.header in reference.values)) {
+      mismatches.push(`${column.header}: missing from the reference`);
+      continue;
+    }
     const want = reference.values[column.header];
     const got = asBeta7.values[column.header];
     if (!agrees(got, want, reference.tolerance ?? 1e-6)) {

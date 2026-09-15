@@ -7,11 +7,17 @@ function export_reference(reservoirDir, xmlDir, outDir)
 %   every .xml file in xmlDir, and writes outDir/<name>.json with the 89
 %   resdata.xls values for each, in the form test/check-reservoir.mjs reads.
 %
-%   The script runs as it ships, with one exception on releases before R2021a:
-%   one line passes HorizontalAlignment='center', a name=value form those
-%   releases cannot parse, and a file that does not parse does not run at all.
-%   It is rewritten as 'HorizontalAlignment','center'. That line places the
-%   "SPTI" label on a figure and touches no result.
+%   The script runs as it ships, except for two lines that draw labels on the
+%   SEVR figure, neither of which touches a result. Each is printed when it is
+%   rewritten:
+%
+%   - The "T1" label indexes the aortic beat with a value that is not always an
+%     integer in floating point, which stops the script on some recordings on
+%     every release. The index is rounded.
+%   - On releases before R2021a, the "SPTI" label passes
+%     HorizontalAlignment='center', a name=value form those releases cannot
+%     parse, and a file that does not parse does not run at all. It becomes
+%     'HorizontalAlignment','center'.
 %
 %   bpp_Res2.m reads bppconfig.json from the folder it runs in, and MATLAB's
 %   run() switches to the script's own folder. So the script is copied into a
@@ -51,8 +57,16 @@ function export_reference(reservoirDir, xmlDir, outDir)
         unicode2native(jsonencode(struct('folder_name', [dataDir filesep])), 'UTF-8'));
 
     script = readBytes(source);
+
+    % The "T1" label on the SEVR figure is placed at ao.p_av(ao_Ti*samplerate).
+    % ao_Ti is ti/samplerate, and ti/samplerate*samplerate is not always an
+    % integer in floating point, so on some recordings the script stops there
+    % on every release. Rounding it, as the script already does for the same
+    % index where it computes ao_p1, moves no result.
+    script = rewrite(script, 'ao.p_av(ao_Ti*samplerate)', 'ao.p_av(round(ao_Ti*samplerate))');
+
     if releaseBefore2021a()
-        script = strrep(script, 'HorizontalAlignment=''center''', '''HorizontalAlignment'',''center''');
+        script = rewrite(script, 'HorizontalAlignment=''center''', '''HorizontalAlignment'',''center''');
     end
     writeBytes(fullfile(work, 'bpp_Res2.m'), script);
 
@@ -100,6 +114,16 @@ function export_reference(reservoirDir, xmlDir, outDir)
     end
 
     clear cleanup
+end
+
+function script = rewrite(script, from, to)
+    % Reported, so the output says exactly how the script that ran differs from
+    % the one in the checkout. A line already fixed upstream is left alone.
+    count = numel(strfind(script, from));
+    if count > 0
+        script = strrep(script, from, to);
+        fprintf('bpp_Res2.m: rewrote %d x  %s  as  %s\n', count, from, to);
+    end
 end
 
 function runScript(file)

@@ -12,9 +12,8 @@ kind of source is an independent check of the whole port.
 
 ## The files here
 
-All of them are currently **scipy reference** values, produced by
-`reference.py`, because no licensed MATLAB was available when the port was
-written. Replace them with MATLAB output as soon as it is:
+All of them are **MATLAB beta7** values, produced by `export_reference.m` with
+R2019b. To regenerate them — after `bpp_Res2.m` changes upstream, say:
 
 ```
 # The simulator's recorded measurement, and the fixtures from BPplus-Reservoir
@@ -25,9 +24,10 @@ matlab -batch "addpath('test/reservoir'); export_reference('D:\Uscom\github\BPpl
 
 `export_reference.m` runs `bpp_Res2.m` as it ships and converts its
 `resdata.xls`, so there is no second transcription to trust. It works from
-R2019b. Releases before R2021a cannot parse one plotting line of `bpp_Res2.m`,
-which it rewrites in a temporary copy without touching any result — the comment
-at the top of the file says exactly what.
+R2019b. It rewrites two lines of `bpp_Res2.m` in a temporary copy, both placing
+labels on the SEVR figure and neither touching a result: one stops the script on
+some recordings on any release, and one releases before R2021a cannot parse. The
+comment at the top of the file says exactly what, and each rewrite is printed.
 
 The CardioScope fixtures are analysed too, and skipped by the check.
 
@@ -49,11 +49,15 @@ The fixture files themselves are not copied here. Point the check at them:
 BPPLUS_RESERVOIR_FIXTURES=D:/Uscom/github/BPplus-Reservoir/tests/fixtures node test/check-reservoir.mjs
 ```
 
-## Cross-check when the port was written
+## Checks when the port was written
 
-The JavaScript and the scipy reference were run over the fixtures above and 26
-further local recordings. All 34 agreed in every column; the largest relative
-difference was 1e-7, in the fitted rate constants, which is the size of
-`fminsearch`'s own stopping tolerance. The Murgo types of the three synthetic
-pulses came out as A (29), B (9) and C (−19), the values their fixture was
-built to produce.
+**Against MATLAB.** R2019b (Update 9) ran beta7 over the eight measurements
+above. The port, with `compatibility: 'beta7'`, agreed with it in all 89 columns
+of every one; the largest relative difference was 7e-8, in the fitted rate
+constants, which is the size of `fminsearch`'s own stopping tolerance.
+
+**Against scipy.** Before a licensed MATLAB was available, the port and
+`reference.py` were run over the same fixtures and 26 further local recordings.
+All 34 agreed in every column, to 1e-7. The Murgo types of the three synthetic
+pulses came out as A (29), B (9) and C (−19), the values their fixture was built
+to produce.
