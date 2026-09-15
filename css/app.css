@@ -514,4 +514,5 @@ Make navbar transparent
 .res-device { font-size: 12px; color: #555; white-space: nowrap; }
 .res-tag { font-size: 10px; color: #aaa; }
 .res-missing { color: #bbb; }
+.res-corrected { font-size: 10px; color: #8d6e00; white-space: nowrap; }
 .res-notes { padding: 4px 16px 24px; }

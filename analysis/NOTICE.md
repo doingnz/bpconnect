@@ -56,6 +56,27 @@ Pulse wave analysis:
   noninvasive pressure waveforms. Am J Hypertens 2005;18(1 Pt 2):3S-10S
   (wasted LV pressure energy).
 
+## Where this port departs from beta7
+
+Defects in beta7 are corrected, each listed in `CORRECTIONS` in `reservoir.js`
+and shown on the tab. `analyseReservoir(input, { compatibility: 'beta7' })`
+reproduces the original exactly.
+
+- **Diastolic duration** (`re_aodd`) is 60/HR less the ejection duration. beta7
+  subtracts the end-systolic pressure divided by 1000.
+
+Behaviour kept as beta7 has it, because changing it changes results that are
+the original authors' to define:
+
+- The beat is cut after its last falling sample before the reservoir fit, but
+  the fit's time axis spans the uncut beat, so its sample interval is slightly
+  longer than 1/fs. The ejection duration, rate constants, SEVR split and Ew
+  inherit this.
+- The pressure-time integrals (`re_ao_tti`, `re_ao_dti`) are summed over
+  samples, not seconds. The tab labels them mmHg·sample.
+- The time of Wf2 (`re_wf2t`) is one sample later than the peak it reports:
+  the search window's offset is added to a 1-based position.
+
 ## Status
 
 A research analysis, not a result of the BP+ and not for diagnosis. Values are

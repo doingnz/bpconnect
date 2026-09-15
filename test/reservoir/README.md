@@ -27,6 +27,12 @@ matlab -batch "addpath('test/reservoir'); export_reference('D:\Uscom\github\BPpl
 `export_reference.m` runs `bpp_Res2.m` exactly as it ships and converts its
 `resdata.xls`, so there is no second transcription to trust.
 
+The corrections `analysis/` makes to beta7 on purpose (`CORRECTIONS` in
+`analysis/reservoir.js`) are switched off by
+`analyseReservoir(input, { compatibility: 'beta7' })`. The check compares that
+against the reference, so MATLAB output stays directly comparable however many
+corrections are added.
+
 | Name | Measurement |
 |---|---|
 | `simulator` | The recording `sdk/transports/simulator-data.js` replays. Checked on every run and in CI. |

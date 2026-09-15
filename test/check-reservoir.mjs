@@ -109,12 +109,19 @@ for (const m of measurements) {
     continue;
   }
 
-  const result = analyseReservoir(reservoirInput(source, { file: `${m.name}.xml` }));
+  const input = reservoirInput(source, { file: `${m.name}.xml` });
+  const result = analyseReservoir(input);
+  // The reference values are beta7's, so they are compared with beta7's behaviour.
+  const asBeta7 = analyseReservoir(input, { compatibility: 'beta7' });
 
   if (m.requireComplete) {
     check(`${m.name}: analysed`, result.processed, result.reason || '');
     check(`${m.name}: every section computed`, result.errors.length === 0,
       result.errors.map(e => `${e.section}: ${e.message}`).join('; '));
+
+    const v = result.values;
+    check(`${m.name}: diastolic duration is the beat less the ejection duration`,
+      close(v.re_aodd, 60 / v.re_hr - v.re_ao_ed, 1e-12), String(v.re_aodd));
   } else {
     const note = !result.processed
       ? result.reason
@@ -130,7 +137,7 @@ for (const m of measurements) {
   for (const column of COLUMNS) {
     if (!(column.header in reference.values) || column.header === 're_file') continue;
     const want = reference.values[column.header];
-    const got = result.values[column.header];
+    const got = asBeta7.values[column.header];
     if (!agrees(got, want, reference.tolerance ?? 1e-6)) {
       mismatches.push(`${column.header}: got ${got}, reference ${want}`);
     }

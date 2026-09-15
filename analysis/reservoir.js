@@ -35,6 +35,26 @@ const FRAME = 9;             // and window (Rivolo et al., IEEE EMBC 2014)
 export const MIN_SNR = 6;
 
 /**
+ * Where this analysis departs from bpp_Res2.m beta7 on purpose.
+ *
+ * Each is a defect in beta7 rather than a choice, and each is switched off by
+ * `{ compatibility: 'beta7' }`, which reproduces the MATLAB exactly — that is
+ * how the port is checked against MATLAB output. `column` names the result a
+ * correction changes, when it changes one.
+ */
+export const CORRECTIONS = [
+  {
+    id: 'diastolic-duration',
+    column: 're_aodd',
+    text: 'Diastolic duration is 60/HR less the ejection duration. beta7 subtracts ' +
+          'the end-systolic pressure divided by 1000 instead.',
+  },
+];
+
+/** Written to re_resvers when the corrections apply, so a CSV row says which. */
+export const CORRECTED_VERSION = `${ANALYSIS_VERSION}-bpconnect`;
+
+/**
  * Quality from SNR, as read_BPplus.m names it.
  * @returns {'Excellent'|'Good'|'Acceptable'|'Poor'|'Unacceptable'}
  */
@@ -70,15 +90,19 @@ export function qualityFromSnr(snr) {
  * Run the analysis.
  *
  * @param {ReservoirInput} input
+ * @param {{compatibility?: 'beta7'}} [options]  'beta7' reproduces bpp_Res2.m
+ *        beta7 exactly, without CORRECTIONS
  * @returns {{
  *   processed: boolean, reason: string|null, quality: string,
  *   values: Object<string, number|string|null>,
  *   errors: Array<{section: string, message: string}>,
  *   series: object,
+ *   corrections: Array<{id: string, column: string|null, text: string}>,
  * }}
  *   `values` is keyed by the resdata.xls column header (see columns.js).
  */
-export function analyseReservoir(input) {
+export function analyseReservoir(input, { compatibility = null } = {}) {
+  const beta7 = compatibility === 'beta7';
   const values = Object.fromEntries(COLUMNS.map(c => [c.header, null]));
   const errors = [];
   const series = {};
@@ -89,11 +113,14 @@ export function analyseReservoir(input) {
   values.re_date = input.datetime ?? '';
   values.re_bppvers = input.softwareVersion ?? '';
   values.re_bppalgo = input.algorithmRevision ?? '';
-  values.re_resvers = ANALYSIS_VERSION;
+  values.re_resvers = beta7 ? ANALYSIS_VERSION : CORRECTED_VERSION;
   values.re_kres = KRESERVOIR_VERSION;
   values.re_snr = finite(input.snr);
 
-  const result = { processed: false, reason: null, quality, values, errors, series };
+  const result = {
+    processed: false, reason: null, quality, values, errors, series,
+    corrections: beta7 ? [] : CORRECTIONS,
+  };
 
   if (!(input.snr >= MIN_SNR)) {
     result.reason = `Not analysed: the signal-to-noise ratio is ${Number.isFinite(input.snr) ? input.snr + ' dB' : 'unknown'}, ` +
@@ -406,7 +433,11 @@ export function analyseReservoir(input) {
 
   values.re_ppar = ba.pp / ao.pp;
   if (pwa) values.re_ai75 = pwa.ai + 0.481 * ba.hr - 36.1;
-  if (aoRes) values.re_aodd = 60 / ba.hr - aoRes.Pn / 1000;
+  if (aoRes) {
+    // The beat less the ejection duration. beta7 subtracts the end-systolic
+    // pressure over 1000, which lands in a plausible range and so goes unseen.
+    values.re_aodd = beta7 ? 60 / ba.hr - aoRes.Pn / 1000 : 60 / ba.hr - aoRes.Tn;
+  }
   if (aoRes && pwa) {
     // Nichols WW. Am J Hypertens 2005;18(1 Pt 2):3S-10S.
     values.re_ao_ew = Math.PI / 2 * (aoRes.Tn - pwa.Tr) * (ao.sbp - pwa.Pi) * MMHG_PA;

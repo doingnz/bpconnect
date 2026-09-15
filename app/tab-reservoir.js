@@ -256,6 +256,18 @@ function render() {
   renderStatus(current.result, current.file);
   renderCharts(current.result);
   renderTables(current.result, current.device);
+  renderCorrections(current.result);
+}
+
+/** Where these numbers depart from bpp_Res2.m beta7, so a comparison with it can be made. */
+function renderCorrections(result) {
+  const host = $('res-corrections');
+  if (!host) return;
+  host.innerHTML = result.corrections.length
+    ? '<strong>Where this differs from bpp_Res2.m beta7</strong><ul>' +
+      result.corrections.map(c => `<li>${escapeHtml(c.text)}</li>`).join('') +
+      `</ul>Exported rows say so: their <code>re_resvers</code> is ${escapeHtml(result.values.re_resvers)}.`
+    : '';
 }
 
 function renderStatus(result, file) {
@@ -507,6 +519,7 @@ function renderTables(result, device) {
   host.innerHTML = GROUPS.map(group => {
     const columns = COLUMNS.filter(c => c.group === group);
     const withDevice = columns.some(c => (c.device || []).some(d => d.tag in device));
+    const corrected = new Set(result.corrections.map(k => k.column).filter(Boolean));
 
     const rows = columns.map(c => {
       const shown = formatValue(result.values[c.header], c);
@@ -519,7 +532,8 @@ function renderTables(result, device) {
 
       return `
         <tr>
-          <td class="label-cell">${escapeHtml(c.label)}<span class="res-header">${escapeHtml(c.header)}</span></td>
+          <td class="label-cell">${escapeHtml(c.label)}${corrected.has(c.header)
+            ? ' <span class="res-corrected">differs from beta7</span>' : ''}<span class="res-header">${escapeHtml(c.header)}</span></td>
           <td class="numeric-cell">${shown === '' ? '<span class="res-missing">—</span>' : escapeHtml(shown)}</td>
           <td class="res-unit">${escapeHtml(c.unit)}</td>
           ${deviceCell}

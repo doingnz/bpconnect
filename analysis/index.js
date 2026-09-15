@@ -8,6 +8,7 @@
 
 export {
   analyseReservoir, qualityFromSnr, ANALYSIS_VERSION, KRESERVOIR_VERSION, MIN_SNR,
+  CORRECTIONS, CORRECTED_VERSION,
 } from './reservoir.js';
 export { reservoirInput, deviceValues } from './input.js';
 export { COLUMNS, GROUPS, formatValue, resultsCsv } from './columns.js';
