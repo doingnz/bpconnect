@@ -481,7 +481,8 @@ Make navbar transparent
     margin: 12px 0 4px;
 }
 
-.res-toolbar .button { flex: 0 0 auto; padding: 0 14px; }
+/* Framework7 buttons fill their row; these two share one. */
+.res-toolbar .button { flex: 0 0 auto; width: auto; padding: 0 14px; }
 
 /* The file input is opened by its label, which is styled as the button. */
 .res-open input { display: none; }
@@ -515,4 +516,23 @@ Make navbar transparent
 .res-tag { font-size: 10px; color: #aaa; }
 .res-missing { color: #bbb; }
 .res-corrected { font-size: 10px; color: #8d6e00; white-space: nowrap; }
+
+/* A single beat stretched across a wide screen is mostly empty time axis, so
+   the figures sit two to a row and stop growing at a width that reads well. */
+.res-charts {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    max-width: 1200px;
+}
+
+/* Without min-width: 0 a grid cell is at least as wide as the canvas already
+   in it, so Chart.js, which sizes the canvas to its cell, can never shrink it. */
+.res-charts > .wf-section { min-width: 0; }
+
+.res-charts .wf-section:nth-child(odd) { border-right: 1px solid #e8e8e8; }
+
+@media (max-width: 760px) {
+    .res-charts { grid-template-columns: minmax(0, 1fr); }
+    .res-charts .wf-section:nth-child(odd) { border-right: none; }
+}
 .res-notes { padding: 4px 16px 24px; }
